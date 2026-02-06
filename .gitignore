@@ -1,0 +1,41 @@
+# Xcode Build Artifacts
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Coverage and Profiling
+*.profraw
+*.profdata
+CodeCoverage/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+*.xcworkspace/xcuserdata/
+
+# Archives
+*.xcarchive
+
+# Debug
+*.dSYM.zip
+*.dSYM
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+.claude
+CLAUDE.md

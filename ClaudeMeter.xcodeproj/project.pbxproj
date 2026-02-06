@@ -1,0 +1,946 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		/* App Files */
+		APP001 /* ClaudeMeterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC001; };
+		APP002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC002; };
+		APP003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC003; };
+
+		/* Core Models */
+		MOD001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC004; };
+		MOD002 /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC005; };
+		MOD003 /* UsageData.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC006; };
+		MOD004 /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC007; };
+		MOD005 /* TokenUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC040; };
+		MOD007 /* SubscriptionType.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC042; };
+
+		/* Core Services */
+		SVC001 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC008; };
+		SVC002 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC009; };
+		SVC003 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC010; };
+		SVC004 /* FileWatcherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC011; };
+
+		/* Core Managers */
+		MGR001 /* UsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC012; };
+		MGR002 /* PollingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC013; };
+		MGR003 /* CacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC014; };
+
+		/* UI MenuBar */
+		UIM001 /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC015; };
+
+		/* UI Popover */
+		UIP001 /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC018; };
+		UIP002 /* UsageCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC019; };
+		UIP003 /* ProgressRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC020; };
+		UIP004 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC021; };
+		UIP005 /* CountdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC022; };
+
+		/* UI Components */
+		UIC001 /* ColorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC023; };
+		UIC002 /* AnimatedNumber.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC024; };
+		UIC003 /* PulseEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC025; };
+		UIC004 /* SubscriptionBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC045; };
+		UIC005 /* TokenUsageCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC046; };
+
+		/* UI Settings */
+		UIS001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC026; };
+		UIS002 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC036; };
+		UIS003 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC037; };
+		UIS004 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC038; };
+		UIS005 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC039; };
+
+		/* Core */
+		CONST001 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC030; };
+		DIC001 /* DependencyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC031; };
+
+		/* Core Protocols */
+		PROTO001 /* APIServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
+		PROTO002 /* KeychainServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC033; };
+		PROTO003 /* CacheManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC034; };
+		PROTO004 /* NotificationServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC035; };
+
+		/* Extensions */
+		EXT001 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC027; };
+		EXT002 /* Date+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC028; };
+		EXT003 /* String+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC029; };
+
+		/* Test Files */
+		TST001 /* APIServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC001; };
+		TST002 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC002; };
+		TST003 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC003; };
+		TST004 /* UsageManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC004; };
+
+		/* Test Mocks */
+		TST005 /* MockAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC005; };
+		TST006 /* MockKeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC006; };
+		TST007 /* MockCacheManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC007; };
+		TST008 /* MockNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC008; };
+
+		/* Test Utilities */
+		TST009 /* TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC009; };
+
+		/* UI Test Files */
+		UIT001 /* ClaudeMeterUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UIT_SRC001; };
+
+		/* Assets */
+		AST001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AST_REF001; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		PROXY001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ROOT001;
+			proxyType = 1;
+			remoteGlobalIDString = TARGET001;
+			remoteInfo = ClaudeMeter;
+		};
+		PROXY002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ROOT001;
+			proxyType = 1;
+			remoteGlobalIDString = TARGET001;
+			remoteInfo = ClaudeMeter;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		/* Product References */
+		PROD001 /* ClaudeMeter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudeMeter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		PROD002 /* ClaudeMeterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeMeterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		PROD003 /* ClaudeMeterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudeMeterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		/* App Sources */
+		SRC001 /* ClaudeMeterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeMeterApp.swift; sourceTree = "<group>"; };
+		SRC002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		SRC003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+
+		/* Core Models */
+		SRC004 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		SRC005 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		SRC006 /* UsageData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageData.swift; sourceTree = "<group>"; };
+		SRC007 /* Credentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Credentials.swift; sourceTree = "<group>"; };
+		SRC040 /* TokenUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsage.swift; sourceTree = "<group>"; };
+		SRC042 /* SubscriptionType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionType.swift; sourceTree = "<group>"; };
+
+		/* Core Services */
+		SRC008 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		SRC009 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		SRC010 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		SRC011 /* FileWatcherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcherService.swift; sourceTree = "<group>"; };
+
+		/* Core Managers */
+		SRC012 /* UsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManager.swift; sourceTree = "<group>"; };
+		SRC013 /* PollingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingManager.swift; sourceTree = "<group>"; };
+		SRC014 /* CacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManager.swift; sourceTree = "<group>"; };
+
+		/* UI MenuBar */
+		SRC015 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+
+		/* UI Popover */
+		SRC018 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
+		SRC019 /* UsageCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageCardView.swift; sourceTree = "<group>"; };
+		SRC020 /* ProgressRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRingView.swift; sourceTree = "<group>"; };
+		SRC021 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
+		SRC022 /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
+
+		/* UI Components */
+		SRC023 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
+		SRC024 /* AnimatedNumber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedNumber.swift; sourceTree = "<group>"; };
+		SRC025 /* PulseEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseEffect.swift; sourceTree = "<group>"; };
+		SRC045 /* SubscriptionBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionBadgeView.swift; sourceTree = "<group>"; };
+		SRC046 /* TokenUsageCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageCardView.swift; sourceTree = "<group>"; };
+
+		/* UI Settings */
+		SRC026 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		SRC036 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		SRC037 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
+		SRC038 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+		SRC039 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+
+		/* Core */
+		SRC030 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		SRC031 /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
+
+		/* Core Protocols */
+		SRC032 /* APIServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceProtocol.swift; sourceTree = "<group>"; };
+		SRC033 /* KeychainServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceProtocol.swift; sourceTree = "<group>"; };
+		SRC034 /* CacheManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheManagerProtocol.swift; sourceTree = "<group>"; };
+		SRC035 /* NotificationServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceProtocol.swift; sourceTree = "<group>"; };
+
+		/* Extensions */
+		SRC027 /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
+		SRC028 /* Date+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Extensions.swift"; sourceTree = "<group>"; };
+		SRC029 /* String+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+Extensions.swift"; sourceTree = "<group>"; };
+
+		/* Test Sources */
+		TST_SRC001 /* APIServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceTests.swift; sourceTree = "<group>"; };
+		TST_SRC002 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
+		TST_SRC003 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
+		TST_SRC004 /* UsageManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManagerTests.swift; sourceTree = "<group>"; };
+
+		/* Test Mocks */
+		TST_SRC005 /* MockAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAPIService.swift; sourceTree = "<group>"; };
+		TST_SRC006 /* MockKeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockKeychainService.swift; sourceTree = "<group>"; };
+		TST_SRC007 /* MockCacheManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCacheManager.swift; sourceTree = "<group>"; };
+		TST_SRC008 /* MockNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationService.swift; sourceTree = "<group>"; };
+
+		/* Test Utilities */
+		TST_SRC009 /* TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestData.swift; sourceTree = "<group>"; };
+
+		/* UI Test Sources */
+		UIT_SRC001 /* ClaudeMeterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeMeterUITests.swift; sourceTree = "<group>"; };
+
+		/* Assets */
+		AST_REF001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+
+		/* Entitlements */
+		ENT001 /* ClaudeMeter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClaudeMeter.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FRM001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FRM002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FRM003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		ROOT_GRP /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				GRP_MAIN /* ClaudeMeter */,
+				GRP_TESTS /* ClaudeMeterTests */,
+				GRP_UITESTS /* ClaudeMeterUITests */,
+				GRP_PRODUCTS /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		GRP_PRODUCTS /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				PROD001 /* ClaudeMeter.app */,
+				PROD002 /* ClaudeMeterTests.xctest */,
+				PROD003 /* ClaudeMeterUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		GRP_MAIN /* ClaudeMeter */ = {
+			isa = PBXGroup;
+			children = (
+				GRP_APP /* App */,
+				GRP_CORE /* Core */,
+				GRP_UI /* UI */,
+				GRP_EXT /* Extensions */,
+				AST_REF001 /* Assets.xcassets */,
+				ENT001 /* ClaudeMeter.entitlements */,
+			);
+			path = ClaudeMeter;
+			sourceTree = "<group>";
+		};
+		GRP_APP /* App */ = {
+			isa = PBXGroup;
+			children = (
+				SRC001 /* ClaudeMeterApp.swift */,
+				SRC002 /* AppDelegate.swift */,
+				SRC003 /* AppState.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		GRP_CORE /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				SRC030 /* Constants.swift */,
+				SRC031 /* DependencyContainer.swift */,
+				GRP_PROTOCOLS /* Protocols */,
+				GRP_MODELS /* Models */,
+				GRP_SERVICES /* Services */,
+				GRP_MANAGERS /* Managers */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		GRP_PROTOCOLS /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				SRC032 /* APIServiceProtocol.swift */,
+				SRC033 /* KeychainServiceProtocol.swift */,
+				SRC034 /* CacheManagerProtocol.swift */,
+				SRC035 /* NotificationServiceProtocol.swift */,
+			);
+			path = Protocols;
+			sourceTree = "<group>";
+		};
+		GRP_MODELS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				SRC004 /* AppSettings.swift */,
+				SRC005 /* AppError.swift */,
+				SRC006 /* UsageData.swift */,
+				SRC007 /* Credentials.swift */,
+				SRC040 /* TokenUsage.swift */,
+				SRC042 /* SubscriptionType.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		GRP_SERVICES /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				SRC008 /* APIService.swift */,
+				SRC009 /* KeychainService.swift */,
+				SRC010 /* NotificationService.swift */,
+				SRC011 /* FileWatcherService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		GRP_MANAGERS /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				SRC012 /* UsageManager.swift */,
+				SRC013 /* PollingManager.swift */,
+				SRC014 /* CacheManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		GRP_UI /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				GRP_MENUBAR /* MenuBar */,
+				GRP_POPOVER /* Popover */,
+				GRP_COMPONENTS /* Components */,
+				GRP_SETTINGS /* Settings */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		GRP_MENUBAR /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				SRC015 /* StatusItemController.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		GRP_POPOVER /* Popover */ = {
+			isa = PBXGroup;
+			children = (
+				SRC018 /* PopoverView.swift */,
+				SRC019 /* UsageCardView.swift */,
+				SRC020 /* ProgressRingView.swift */,
+				SRC021 /* ProgressBarView.swift */,
+				SRC022 /* CountdownView.swift */,
+			);
+			path = Popover;
+			sourceTree = "<group>";
+		};
+		GRP_COMPONENTS /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				SRC023 /* ColorTheme.swift */,
+				SRC024 /* AnimatedNumber.swift */,
+				SRC025 /* PulseEffect.swift */,
+				SRC045 /* SubscriptionBadgeView.swift */,
+				SRC046 /* TokenUsageCardView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		GRP_SETTINGS /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				SRC026 /* SettingsView.swift */,
+				SRC036 /* GeneralSettingsView.swift */,
+				SRC037 /* AppearanceSettingsView.swift */,
+				SRC038 /* NotificationSettingsView.swift */,
+				SRC039 /* AboutView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		GRP_EXT /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				SRC027 /* Color+Extensions.swift */,
+				SRC028 /* Date+Extensions.swift */,
+				SRC029 /* String+Extensions.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		GRP_TESTS /* ClaudeMeterTests */ = {
+			isa = PBXGroup;
+			children = (
+				GRP_TST_SERVICES /* Services */,
+				GRP_TST_MANAGERS /* Managers */,
+				GRP_TST_MOCKS /* Mocks */,
+				GRP_TST_UTILITIES /* TestUtilities */,
+				TST_SRC002 /* MockURLProtocol.swift */,
+			);
+			path = ClaudeMeterTests;
+			sourceTree = "<group>";
+		};
+		GRP_TST_MOCKS /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				TST_SRC005 /* MockAPIService.swift */,
+				TST_SRC006 /* MockKeychainService.swift */,
+				TST_SRC007 /* MockCacheManager.swift */,
+				TST_SRC008 /* MockNotificationService.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		GRP_TST_UTILITIES /* TestUtilities */ = {
+			isa = PBXGroup;
+			children = (
+				TST_SRC009 /* TestData.swift */,
+			);
+			path = TestUtilities;
+			sourceTree = "<group>";
+		};
+		GRP_TST_SERVICES /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				TST_SRC001 /* APIServiceTests.swift */,
+				TST_SRC003 /* KeychainServiceTests.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		GRP_TST_MANAGERS /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				TST_SRC004 /* UsageManagerTests.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		GRP_UITESTS /* ClaudeMeterUITests */ = {
+			isa = PBXGroup;
+			children = (
+				UIT_SRC001 /* ClaudeMeterUITests.swift */,
+			);
+			path = ClaudeMeterUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TARGET001 /* ClaudeMeter */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFG_LIST001;
+			buildPhases = (
+				SRC_PHASE001 /* Sources */,
+				FRM001 /* Frameworks */,
+				RES_PHASE001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ClaudeMeter;
+			productName = ClaudeMeter;
+			productReference = PROD001 /* ClaudeMeter.app */;
+			productType = "com.apple.product-type.application";
+		};
+		TARGET002 /* ClaudeMeterTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFG_LIST002;
+			buildPhases = (
+				SRC_PHASE002 /* Sources */,
+				FRM002 /* Frameworks */,
+				RES_PHASE002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DEP001 /* PBXTargetDependency */,
+			);
+			name = ClaudeMeterTests;
+			productName = ClaudeMeterTests;
+			productReference = PROD002 /* ClaudeMeterTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		TARGET003 /* ClaudeMeterUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFG_LIST003;
+			buildPhases = (
+				SRC_PHASE003 /* Sources */,
+				FRM003 /* Frameworks */,
+				RES_PHASE003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DEP002 /* PBXTargetDependency */,
+			);
+			name = ClaudeMeterUITests;
+			productName = ClaudeMeterUITests;
+			productReference = PROD003 /* ClaudeMeterUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		ROOT001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					TARGET001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					TARGET002 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = TARGET001;
+					};
+					TARGET003 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = TARGET001;
+					};
+				};
+			};
+			buildConfigurationList = CFG_LIST_PROJ;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ROOT_GRP;
+			productRefGroup = GRP_PRODUCTS;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TARGET001 /* ClaudeMeter */,
+				TARGET002 /* ClaudeMeterTests */,
+				TARGET003 /* ClaudeMeterUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		RES_PHASE001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AST001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		RES_PHASE002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		RES_PHASE003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		SRC_PHASE001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				APP001 /* ClaudeMeterApp.swift in Sources */,
+				APP002 /* AppDelegate.swift in Sources */,
+				APP003 /* AppState.swift in Sources */,
+				CONST001 /* Constants.swift in Sources */,
+				DIC001 /* DependencyContainer.swift in Sources */,
+				PROTO001 /* APIServiceProtocol.swift in Sources */,
+				PROTO002 /* KeychainServiceProtocol.swift in Sources */,
+				PROTO003 /* CacheManagerProtocol.swift in Sources */,
+				PROTO004 /* NotificationServiceProtocol.swift in Sources */,
+				MOD001 /* AppSettings.swift in Sources */,
+				MOD002 /* AppError.swift in Sources */,
+				MOD003 /* UsageData.swift in Sources */,
+				MOD004 /* Credentials.swift in Sources */,
+				MOD005 /* TokenUsage.swift in Sources */,
+				MOD007 /* SubscriptionType.swift in Sources */,
+				SVC001 /* APIService.swift in Sources */,
+				SVC002 /* KeychainService.swift in Sources */,
+				SVC003 /* NotificationService.swift in Sources */,
+				SVC004 /* FileWatcherService.swift in Sources */,
+				MGR001 /* UsageManager.swift in Sources */,
+				MGR002 /* PollingManager.swift in Sources */,
+				MGR003 /* CacheManager.swift in Sources */,
+				UIM001 /* StatusItemController.swift in Sources */,
+				UIP001 /* PopoverView.swift in Sources */,
+				UIP002 /* UsageCardView.swift in Sources */,
+				UIP003 /* ProgressRingView.swift in Sources */,
+				UIP004 /* ProgressBarView.swift in Sources */,
+				UIP005 /* CountdownView.swift in Sources */,
+				UIC001 /* ColorTheme.swift in Sources */,
+				UIC002 /* AnimatedNumber.swift in Sources */,
+				UIC003 /* PulseEffect.swift in Sources */,
+				UIC004 /* SubscriptionBadgeView.swift in Sources */,
+				UIC005 /* TokenUsageCardView.swift in Sources */,
+				UIS001 /* SettingsView.swift in Sources */,
+				UIS002 /* GeneralSettingsView.swift in Sources */,
+				UIS003 /* AppearanceSettingsView.swift in Sources */,
+				UIS004 /* NotificationSettingsView.swift in Sources */,
+				UIS005 /* AboutView.swift in Sources */,
+				EXT001 /* Color+Extensions.swift in Sources */,
+				EXT002 /* Date+Extensions.swift in Sources */,
+				EXT003 /* String+Extensions.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		SRC_PHASE002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TST001 /* APIServiceTests.swift in Sources */,
+				TST002 /* MockURLProtocol.swift in Sources */,
+				TST003 /* KeychainServiceTests.swift in Sources */,
+				TST004 /* UsageManagerTests.swift in Sources */,
+				TST005 /* MockAPIService.swift in Sources */,
+				TST006 /* MockKeychainService.swift in Sources */,
+				TST007 /* MockCacheManager.swift in Sources */,
+				TST008 /* MockNotificationService.swift in Sources */,
+				TST009 /* TestData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		SRC_PHASE003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				UIT001 /* ClaudeMeterUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DEP001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = TARGET001 /* ClaudeMeter */;
+			targetProxy = PROXY001 /* PBXContainerItemProxy */;
+		};
+		DEP002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = TARGET001 /* ClaudeMeter */;
+			targetProxy = PROXY002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		CFG_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CFG_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		CFG_APP_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ClaudeMeter/ClaudeMeter.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ClaudeMeter;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudemeter.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		CFG_APP_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ClaudeMeter/ClaudeMeter.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ClaudeMeter;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudemeter.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		CFG_TEST_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudemeter.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ClaudeMeter.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ClaudeMeter";
+			};
+			name = Debug;
+		};
+		CFG_TEST_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudemeter.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ClaudeMeter.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ClaudeMeter";
+			};
+			name = Release;
+		};
+		CFG_UITEST_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudemeter.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = ClaudeMeter;
+			};
+			name = Debug;
+		};
+		CFG_UITEST_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudemeter.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = ClaudeMeter;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CFG_LIST_PROJ /* Build configuration list for PBXProject "ClaudeMeter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG_DEBUG /* Debug */,
+				CFG_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFG_LIST001 /* Build configuration list for PBXNativeTarget "ClaudeMeter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG_APP_DEBUG /* Debug */,
+				CFG_APP_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFG_LIST002 /* Build configuration list for PBXNativeTarget "ClaudeMeterTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG_TEST_DEBUG /* Debug */,
+				CFG_TEST_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFG_LIST003 /* Build configuration list for PBXNativeTarget "ClaudeMeterUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG_UITEST_DEBUG /* Debug */,
+				CFG_UITEST_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = ROOT001 /* Project object */;
+}
