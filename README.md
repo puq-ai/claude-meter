@@ -26,7 +26,7 @@ A macOS menu bar utility to monitor your Anthropic Claude Code usage, token cons
 
 ### Download Release
 
-1. Download the latest release from the [Releases](https://github.com/puq-ai/ClaudeMeter/releases) page
+1. Download the latest release from the [Releases](https://github.com/puq-ai/claude-meter/releases) page
 2. Unzip `ClaudeMeter.app`
 3. Drag to your Applications folder
 4. Launch the app
@@ -35,7 +35,7 @@ A macOS menu bar utility to monitor your Anthropic Claude Code usage, token cons
 
 ```bash
 # Clone the repository
-git clone https://github.com/puq-ai/ClaudeMeter.git
+git clone https://github.com/puq-ai/claude-meter.git
 cd ClaudeMeter
 
 # Build the app
