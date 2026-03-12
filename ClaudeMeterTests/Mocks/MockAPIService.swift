@@ -60,6 +60,16 @@ class MockAPIService: APIServiceProtocol {
         return stubbedTokenValid
     }
 
+    func fetchUsageFromWeb(sessionKey: String, organizationId: String) async throws -> (UsageData, String?) {
+        if let error = stubbedError {
+            throw error
+        }
+        guard let data = stubbedUsageData else {
+            throw APIError.noData
+        }
+        return (data, nil)
+    }
+
     // MARK: - Reset
 
     func reset() {

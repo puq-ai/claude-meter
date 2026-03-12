@@ -19,6 +19,7 @@ class AppState: ObservableObject {
     @Published var error: Error?
 
 
+
     // Previous usage for notification comparison
     private var previousUsageData: UsageData?
 
@@ -64,7 +65,7 @@ class AppState: ObservableObject {
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
             self?.pollingManager.start { [weak self] in
-                await self?.refresh()
+                await self?.performRefresh()
             }
         }
 
@@ -113,6 +114,13 @@ class AppState: ObservableObject {
         // Apply refresh interval to polling manager
         pollingManager.setDefaultInterval(TimeInterval(settings.refreshInterval))
 
+        // Apply web API fallback credentials
+        usageManager.webSessionKey = settings.webSessionKey
+        usageManager.webOrganizationId = settings.webOrganizationId
+        usageManager.onSessionKeyRefreshed = { [weak self] newKey in
+            self?.settings.webSessionKey = newKey
+        }
+
         // Apply dock visibility
         if settings.showInDock {
             NSApp.setActivationPolicy(.regular)
@@ -123,11 +131,22 @@ class AppState: ObservableObject {
 
     // MARK: - Data Refresh
 
-    func refresh() async {
+    func refresh(reason: String = "unknown") async {
+        guard pollingManager.canMakeRequest(reason: reason) else { return }
+        await performRefresh()
+    }
+
+    /// Internal refresh used by polling timer (timer already checks canMakeRequest)
+    private func performRefresh() async {
+        guard pollingManager.beginFetch() else { return }
+        defer { pollingManager.endFetch() }
         await usageManager.fetchUsage()
         if usageManager.error == nil {
             lastUpdateTime = Date()
             pollingManager.recordSuccess()
+        } else if let appError = usageManager.error as? AppError,
+                  case .rateLimited(let retryAfter) = appError {
+            pollingManager.recordRateLimitHit(retryAfter: retryAfter)
         } else {
             pollingManager.recordFailure()
         }
@@ -152,7 +171,8 @@ class AppState: ObservableObject {
         let maxUsage = [
             data.fiveHour?.utilization ?? 0,
             data.sevenDay?.utilization ?? 0,
-            data.sevenDayOpus?.utilization ?? 0
+            data.sevenDayOpus?.utilization ?? 0,
+            data.sevenDaySonnet?.utilization ?? 0
         ].max() ?? 0
 
         pollingManager.updateForUsage(maxUsage)
@@ -204,7 +224,7 @@ class AppState: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 print("AppState: Wake recovery attempt \(index + 1)/\(retryDelays.count)")
-                await self.refresh()
+                await self.refresh(reason: "wake_recovery")
 
                 if self.usageManager.error == nil && self.usageData != nil {
                     print("AppState: Wake recovery succeeded on attempt \(index + 1)")
@@ -235,7 +255,7 @@ class AppState: ObservableObject {
         if usageData == nil {
             print("AppState: Network became available with no data, triggering refresh")
             Task {
-                await refresh()
+                await refresh(reason: "network_recovery")
             }
         }
     }

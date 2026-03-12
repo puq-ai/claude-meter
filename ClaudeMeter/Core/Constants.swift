@@ -21,10 +21,23 @@ enum Constants {
         static let resourceTimeout: TimeInterval = 60
 
         // Headers
-        static let userAgent = "ClaudeMeter/1.0"
+        static let userAgent = "claude-code/2.1.70"
         static let anthropicBeta = "oauth-2025-04-20"
         static let contentType = "application/json"
         static let acceptType = "application/json"
+
+        // Web API fallback (claude.ai)
+        static let webBaseURL = "https://claude.ai"
+        static let webUsageEndpoint = "/api/organizations/%@/usage"
+    }
+
+    // MARK: - Rate Limit Configuration
+    enum RateLimit {
+        static let minimumRequestInterval: TimeInterval = 15
+        static let defaultCooldownDuration: TimeInterval = 60
+        static let maxCooldownDuration: TimeInterval = 600
+        static let stalenessThreshold: TimeInterval = 30
+        static let manualRefreshDebounce: TimeInterval = 5
     }
 
     // MARK: - Retry Configuration
@@ -38,7 +51,7 @@ enum Constants {
 
     // MARK: - Polling Configuration
     enum Polling {
-        static let defaultInterval: TimeInterval = 60
+        static let defaultInterval: TimeInterval = 30
         static let minInterval: TimeInterval = 30
         static let maxInterval: TimeInterval = 300
         static let backgroundInterval: TimeInterval = 900  // 15 minutes
@@ -48,7 +61,7 @@ enum Constants {
         static let criticalUsageThreshold: Double = 90
 
         // Circuit breaker
-        static let maxConsecutiveFailures = 5
+        static let maxConsecutiveFailures = 3
         static let failureBackoffInterval: TimeInterval = 600  // 10 minutes
 
         // Hysteresis for interval changes
@@ -108,7 +121,7 @@ enum Constants {
         static let maxRefreshInterval = 600
 
         // Defaults
-        static let defaultRefreshInterval = 60
+        static let defaultRefreshInterval = 30
         static let defaultNotifyThresholds: [Int] = [75, 90, 95]
     }
 
@@ -129,7 +142,7 @@ enum Constants {
     // MARK: - Wake Recovery Configuration
     enum WakeRecovery {
         static let initialDelay: TimeInterval = 2.0
-        static let retryDelays: [TimeInterval] = [2, 4, 8]
+        static let retryDelays: [TimeInterval] = [5, 15, 30]
         static let significantSleepDuration: TimeInterval = 300  // 5 minutes
         static let maxRetries = 3
     }

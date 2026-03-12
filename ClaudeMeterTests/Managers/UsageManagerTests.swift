@@ -126,7 +126,7 @@ final class UsageDataTests: XCTestCase {
                 "utilization": 23.0,
                 "resets_at": "2025-01-07T00:00:00Z"
             },
-            "seven_day_opus": null
+            "seven_day_sonnet": null
         }
         """.data(using: .utf8)!
 
@@ -184,7 +184,7 @@ final class AppSettingsTests: XCTestCase {
         let settings = AppSettings()
 
         XCTAssertEqual(settings.displayMode, .compact)
-        XCTAssertEqual(settings.refreshInterval, 60)
+        XCTAssertEqual(settings.refreshInterval, 30)
         XCTAssertFalse(settings.launchAtLogin)
         XCTAssertTrue(settings.notificationsEnabled)
         XCTAssertEqual(settings.notifyAt, [75, 90, 95])
@@ -272,7 +272,7 @@ final class PollingManagerTests: XCTestCase {
         let interval = sut.calculateInterval(for: 30)
 
         // Then interval should be longer than default
-        XCTAssertGreaterThan(interval, 60)
+        XCTAssertGreaterThan(interval, Constants.Polling.defaultInterval)
     }
 
     func testCalculateInterval_MediumUsage() {
@@ -280,15 +280,15 @@ final class PollingManagerTests: XCTestCase {
         let interval = sut.calculateInterval(for: 60)
 
         // Then interval should be default
-        XCTAssertEqual(interval, 60)
+        XCTAssertEqual(interval, Constants.Polling.defaultInterval)
     }
 
     func testCalculateInterval_HighUsage() {
         // Given usage 75-90%
         let interval = sut.calculateInterval(for: 80)
 
-        // Then interval should be less than default
-        XCTAssertLessThan(interval, 60)
+        // Then interval should be <= default (high usage polls at or below default)
+        XCTAssertLessThanOrEqual(interval, Constants.Polling.defaultInterval)
     }
 
     func testCalculateInterval_CriticalUsage() {
@@ -296,7 +296,7 @@ final class PollingManagerTests: XCTestCase {
         let interval = sut.calculateInterval(for: 95)
 
         // Then interval should be minimum
-        XCTAssertEqual(interval, 30)
+        XCTAssertEqual(interval, Constants.Polling.minInterval)
     }
 
     func testStart_SetsStateToRunning() {

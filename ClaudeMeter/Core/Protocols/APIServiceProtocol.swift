@@ -24,4 +24,8 @@ protocol APIServiceProtocol {
     /// - Parameter token: The authentication token to validate
     /// - Returns: True if the token is valid
     func validateToken(_ token: String) async -> Bool
+
+    /// Fetch usage data from the web API (claude.ai) as a fallback
+    /// Returns a tuple of (UsageData, refreshedSessionKey?)
+    func fetchUsageFromWeb(sessionKey: String, organizationId: String) async throws -> (UsageData, String?)
 }

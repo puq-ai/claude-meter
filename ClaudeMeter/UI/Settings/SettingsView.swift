@@ -108,7 +108,7 @@ struct SettingsTabContainer<Content: View>: View {
         content
             .frame(maxWidth: Constants.UI.settingsMaxWidth)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal)
+            .padding(.horizontal, 6)
     }
 }
 

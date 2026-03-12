@@ -24,6 +24,9 @@ CodeCoverage/
 # Archives
 *.xcarchive
 
+# DMG output
+*.dmg
+
 # Debug
 *.dSYM.zip
 *.dSYM

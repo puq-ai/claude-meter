@@ -15,48 +15,46 @@ struct AboutView: View {
 
     var body: some View {
         SettingsTabContainer {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // App Logo
-                    Image("AppLogo")
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: Constants.UI.aboutLogoSize, height: Constants.UI.aboutLogoSize)
+            VStack(spacing: 16) {
+                // App Logo
+                Image("AppLogo")
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: Constants.UI.aboutLogoSize, height: Constants.UI.aboutLogoSize)
 
-                    // App Name
-                    Text("ClaudeMeter")
-                        .font(.title)
-                        .fontWeight(.bold)
+                // App Name
+                Text("ClaudeMeter")
+                    .font(.title)
+                    .fontWeight(.bold)
 
-                    // Version
-                    Text("Version \(appVersion) (\(buildNumber))")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                // Version
+                Text("Version \(appVersion) (\(buildNumber))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
-                    Divider()
-                        .padding(.vertical, 4)
+                Divider()
+                    .padding(.vertical, 4)
 
-                    // Description
-                    Text("A macOS menu bar app for monitoring Claude Code usage limits.")
-                        .multilineTextAlignment(.center)
-                        .font(.body)
-                        .foregroundColor(.secondary)
+                // Description
+                Text("A macOS menu bar app for monitoring Claude Code usage limits.")
+                    .multilineTextAlignment(.center)
+                    .font(.body)
+                    .foregroundColor(.secondary)
 
-                    Spacer()
-                        .frame(height: 16)
+                Spacer()
+                    .frame(height: 16)
 
-                    Spacer()
-                        .frame(height: 8)
+                Spacer()
+                    .frame(height: 8)
 
-                    // Copyright
-                    Text("© 2026 puq.ai. All rights reserved.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary.opacity(0.7))
-                }
-                .padding(.top, 20)
-                .padding(.bottom, 16)
+                // Copyright
+                Text("© 2026 puq.ai. All rights reserved.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary.opacity(0.7))
             }
+            .padding(.top, 20)
+            .padding(.bottom, 16)
         }
     }
 }

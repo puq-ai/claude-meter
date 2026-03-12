@@ -56,6 +56,10 @@ class PollingManager {
     private(set) var isNetworkAvailable: Bool = true
     private var networkBecameAvailableCallback: (() -> Void)?
 
+    // Rate limit gate
+    private var lastRequestTime: Date?
+    private var rateLimitCooldownUntil: Date?
+
     // Concurrent fetch guard
     private(set) var isFetching: Bool = false
 
@@ -72,10 +76,9 @@ class PollingManager {
         state = .running
         scheduleTimer(interval: currentInterval)
 
-        // Trigger immediate guarded fetch
+        // Trigger immediate fetch (performRefresh handles its own fetch guard)
         Task {
-            guard beginFetch() else { return }
-            defer { endFetch() }
+            guard canMakeRequest(reason: "start") else { return }
             await onTick()
         }
     }
@@ -106,10 +109,9 @@ class PollingManager {
         let newInterval = calculateInterval(for: lastUsage)
         scheduleTimer(interval: newInterval)
 
-        // Immediate guarded refresh when coming to foreground
+        // Immediate refresh when coming to foreground (performRefresh handles its own fetch guard)
         Task {
-            guard beginFetch() else { return }
-            defer { endFetch() }
+            guard canMakeRequest(reason: "app_became_active") else { return }
             await onTick?()
         }
     }
@@ -249,12 +251,65 @@ class PollingManager {
             return false
         }
         isFetching = true
+        lastRequestTime = Date()
         return true
     }
 
     /// Mark fetch as completed
     func endFetch() {
         isFetching = false
+    }
+
+    // MARK: - Rate Limit Gate
+
+    /// Central gate for all API requests. Returns false if request should be blocked.
+    func canMakeRequest(reason: String = "unknown") -> Bool {
+        // Check 429 cooldown
+        if let cooldownUntil = rateLimitCooldownUntil, Date() < cooldownUntil {
+            let remaining = cooldownUntil.timeIntervalSince(Date())
+            print("PollingManager: Request blocked (\(reason)) - rate limit cooldown, \(String(format: "%.0f", remaining))s remaining")
+            return false
+        }
+
+        // Check minimum request interval
+        if let lastRequest = lastRequestTime {
+            let elapsed = Date().timeIntervalSince(lastRequest)
+            if elapsed < Constants.RateLimit.minimumRequestInterval {
+                print("PollingManager: Request blocked (\(reason)) - too soon, \(String(format: "%.0f", Constants.RateLimit.minimumRequestInterval - elapsed))s remaining")
+                return false
+            }
+        }
+
+        // Check concurrent fetch
+        if isFetching {
+            print("PollingManager: Request blocked (\(reason)) - fetch already in progress")
+            return false
+        }
+
+        return true
+    }
+
+    /// Record a 429 rate limit hit and enter cooldown
+    func recordRateLimitHit(retryAfter: TimeInterval?) {
+        let cooldown = min(retryAfter ?? Constants.RateLimit.defaultCooldownDuration, Constants.RateLimit.maxCooldownDuration)
+        rateLimitCooldownUntil = Date().addingTimeInterval(cooldown)
+
+        // Activate circuit breaker immediately
+        consecutiveFailures = config.maxConsecutiveFailures
+        isInFailureBackoff = true
+
+        // Reschedule timer to fire after cooldown
+        if state == .running {
+            scheduleTimer(interval: cooldown)
+        }
+
+        print("PollingManager: Rate limited - cooldown for \(String(format: "%.0f", cooldown))s")
+    }
+
+    /// Check if data is stale enough to warrant a new request
+    func isDataStale(lastUpdateTime: Date?) -> Bool {
+        guard let lastUpdate = lastUpdateTime else { return true }
+        return Date().timeIntervalSince(lastUpdate) > Constants.RateLimit.stalenessThreshold
     }
 
     // MARK: - Private Methods
@@ -284,8 +339,8 @@ class PollingManager {
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task {
                 guard let self = self else { return }
-                guard self.beginFetch() else { return }
-                defer { self.endFetch() }
+                guard self.canMakeRequest(reason: "timer") else { return }
+                // performRefresh handles its own beginFetch/endFetch guard
                 await self.onTick?()
             }
         }

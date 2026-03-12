@@ -11,6 +11,7 @@ import SwiftUI
 struct PopoverView: View {
     @ObservedObject var appState: AppState
     @State private var showingSettings = false
+    @State private var isRefreshDisabled = false
 
     // Size constants
     private let popoverWidth: CGFloat = 380
@@ -87,11 +88,18 @@ struct PopoverView: View {
                 .accessibilityLabel("Loading usage data")
 
             Button(action: {
-                Task { await appState.refresh() }
+                guard !isRefreshDisabled else { return }
+                isRefreshDisabled = true
+                Task {
+                    await appState.refresh(reason: "manual_refresh")
+                    try? await Task.sleep(nanoseconds: UInt64(Constants.RateLimit.manualRefreshDebounce * 1_000_000_000))
+                    isRefreshDisabled = false
+                }
             }) {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.plain)
+            .opacity(isRefreshDisabled ? 0.5 : 1.0)
             .help("Refresh usage data")
             .accessibilityLabel("Refresh")
             .accessibilityHint("Double tap to refresh usage data")
@@ -126,6 +134,20 @@ struct PopoverView: View {
     private func usageContentView(data: UsageData) -> some View {
         ScrollView {
             VStack(spacing: 12) {
+                if data.fiveHour == nil && data.sevenDay == nil && data.sevenDayOpus == nil {
+                    VStack(spacing: 8) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 28))
+                            .foregroundColor(.secondary)
+                        Text("Usage data structure not recognized")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                }
+
                 if let fiveHour = data.fiveHour {
                     UsageCardView(
                         title: "5-Hour Limit",
@@ -142,17 +164,23 @@ struct PopoverView: View {
                     )
                 }
 
-                if appState.settings.showOpusLimit, let opus = data.sevenDayOpus {
+                if appState.settings.showSonnetLimit, let sonnet = data.sevenDaySonnet {
                     UsageCardView(
-                        title: "Opus Limit",
-                        usage: opus.utilization,
-                        resetsAt: opus.resetsAt
+                        title: "Sonnet Only",
+                        usage: sonnet.utilization,
+                        resetsAt: sonnet.resetsAt
                     )
+                }
+
+                if appState.settings.showExtraUsage, let extra = data.extraUsage, extra.isEnabled {
+                    extraUsageCardView(extra: extra)
                 }
             }
             .padding(.horizontal, contentPadding)
             .padding(.vertical, 8)
+            .background(ScrollBarHider())
         }
+        .scrollIndicators(.hidden)
     }
 
     // MARK: - Error View
@@ -185,9 +213,16 @@ struct PopoverView: View {
             }
 
             Button("Retry") {
-                Task { await appState.refresh() }
+                guard !isRefreshDisabled else { return }
+                isRefreshDisabled = true
+                Task {
+                    await appState.refresh(reason: "retry_button")
+                    try? await Task.sleep(nanoseconds: UInt64(Constants.RateLimit.manualRefreshDebounce * 1_000_000_000))
+                    isRefreshDisabled = false
+                }
             }
             .buttonStyle(.bordered)
+            .disabled(isRefreshDisabled)
 
             Spacer()
         }
@@ -213,9 +248,16 @@ struct PopoverView: View {
                 .multilineTextAlignment(.center)
 
             Button("Refresh") {
-                Task { await appState.refresh() }
+                guard !isRefreshDisabled else { return }
+                isRefreshDisabled = true
+                Task {
+                    await appState.refresh(reason: "empty_state_refresh")
+                    try? await Task.sleep(nanoseconds: UInt64(Constants.RateLimit.manualRefreshDebounce * 1_000_000_000))
+                    isRefreshDisabled = false
+                }
             }
             .buttonStyle(.bordered)
+            .disabled(isRefreshDisabled)
 
             Spacer()
         }
@@ -226,7 +268,16 @@ struct PopoverView: View {
 
     private var footerView: some View {
         HStack {
-            if let lastUpdate = appState.lastUpdateTime {
+            if let error = appState.error {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundColor(ColorTheme.orange)
+                Text(error.localizedDescription)
+                    .font(.caption2)
+                    .foregroundColor(ColorTheme.orange)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else if let lastUpdate = appState.lastUpdateTime {
                 Text("Updated \(lastUpdate.relativeDescription)")
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -237,6 +288,63 @@ struct PopoverView: View {
             // Powered by puq.ai (sağ tarafa taşındı)
             poweredByView
         }
+    }
+
+    // MARK: - Extra Usage Card
+
+    private func extraUsageCardView(extra: ExtraUsage) -> some View {
+        let utilization = extra.utilization ?? 0
+        let progressColor = ColorTheme.colorForUsage(utilization)
+        let isCritical = utilization >= 90
+
+        return VStack(spacing: 12) {
+            // Header
+            HStack {
+                Text("Extra Usage")
+                    .font(.headline)
+                Spacer()
+                AnimatedPercentage(value: utilization)
+            }
+
+            // Progress Ring and Details
+            HStack(spacing: 16) {
+                ProgressRingView(
+                    progress: utilization / 100.0,
+                    color: progressColor,
+                    lineWidth: 6,
+                    size: 50
+                )
+                .glowEffect(isActive: isCritical, color: progressColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressBarView(
+                        progress: utilization / 100.0,
+                        showPercentage: false,
+                        height: 6
+                    )
+                    .frame(maxWidth: .infinity)
+
+                    // Spending info
+                    if let used = extra.usedCredits, let limit = extra.monthlyLimit {
+                        HStack(spacing: 4) {
+                            Image(systemName: "dollarsign.circle")
+                                .font(.caption2)
+                            Text(String(format: "$%.2f spent of $%.0f limit", used / 100.0, limit / 100.0))
+                                .font(.caption2)
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: isCritical ? progressColor.opacity(0.3) : .clear, radius: isCritical ? 8 : 0)
     }
 
     // MARK: - Powered By View
@@ -264,6 +372,29 @@ struct PopoverView: View {
         }
         .buttonStyle(.plain)
         .help("Visit puq.ai")
+    }
+}
+
+// MARK: - ScrollBar Hider
+
+struct ScrollBarHider: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            Self.hideScrollBars(for: view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        Self.hideScrollBars(for: nsView)
+    }
+
+    private static func hideScrollBars(for view: NSView) {
+        guard let scrollView = view.enclosingScrollView else { return }
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.scrollerStyle = .overlay
     }
 }
 

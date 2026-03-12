@@ -20,6 +20,13 @@ class UsageManager: ObservableObject {
     private let cacheManager: CacheManagerProtocol
     private var isFetching: Bool = false
 
+    /// Web API credentials for fallback (set by AppState from settings)
+    var webSessionKey: String = ""
+    var webOrganizationId: String = ""
+
+    /// Called when the web API returns a refreshed session key
+    var onSessionKeyRefreshed: ((String) -> Void)?
+
     init(
         apiService: APIServiceProtocol = APIService(),
         keychainService: KeychainServiceProtocol = KeychainService(),
@@ -78,6 +85,16 @@ class UsageManager: ObservableObject {
             cacheManager.cacheUsageData(data)
 
         } catch let error as APIError {
+            // Try web API fallback before giving up
+            if let fallbackData = await tryWebAPIFallback() {
+                self.usageData = fallbackData
+                self.error = nil
+                cacheManager.cacheUsageData(fallbackData)
+                print("UsageManager: Web API fallback succeeded")
+                isLoading = false
+                return
+            }
+
             self.error = AppError.from(error)
             print("UsageManager: API error - \(error)")
 
@@ -103,6 +120,25 @@ class UsageManager: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    // MARK: - Web API Fallback
+
+    private func tryWebAPIFallback() async -> UsageData? {
+        guard !webSessionKey.isEmpty, !webOrganizationId.isEmpty else {
+            return nil
+        }
+        do {
+            let (data, refreshedKey) = try await apiService.fetchUsageFromWeb(sessionKey: webSessionKey, organizationId: webOrganizationId)
+            if let refreshedKey = refreshedKey {
+                self.webSessionKey = refreshedKey
+                onSessionKeyRefreshed?(refreshedKey)
+            }
+            return data
+        } catch {
+            print("UsageManager: Web API fallback failed - \(error)")
+            return nil
+        }
     }
 
     // MARK: - Cache

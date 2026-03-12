@@ -19,6 +19,7 @@ struct NotificationSettingsView: View {
                     Toggle("Enable Notifications", isOn: $appState.settings.notificationsEnabled)
                         .help("Receive alerts when usage approaches limits.")
                 }
+                .background(ScrollBarHider())
 
                 Section(header: Text("Alert Thresholds")) {
                     Toggle("75% Usage Warning", isOn: Binding(

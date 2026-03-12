@@ -37,7 +37,8 @@ struct AppSettings: Codable, Equatable {
     var displayMode: DisplayMode = .compact
     var colorScheme: AppColorScheme = .auto
     var showInDock: Bool = false
-    var showOpusLimit: Bool = true
+    var showSonnetLimit: Bool = false
+    var showExtraUsage: Bool = false
 
     // Polling
     var refreshInterval: Int = Constants.Settings.defaultRefreshInterval
@@ -48,6 +49,10 @@ struct AppSettings: Codable, Equatable {
     // Notifications
     var notifyAt: [Int] = Constants.Settings.defaultNotifyThresholds
     var notificationsEnabled: Bool = true
+
+    // Web API Fallback (claude.ai session credentials)
+    var webSessionKey: String = ""
+    var webOrganizationId: String = ""
 
     // Computed property for backward compatibility
     var notifyAt90: Bool {

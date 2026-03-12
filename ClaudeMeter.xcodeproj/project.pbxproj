@@ -25,6 +25,7 @@
 		SVC002 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC009; };
 		SVC003 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC010; };
 		SVC004 /* FileWatcherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC011; };
+		SVC005 /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC050; };
 
 		/* Core Managers */
 		MGR001 /* UsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC012; };
@@ -54,6 +55,7 @@
 		UIS003 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC037; };
 		UIS004 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC038; };
 		UIS005 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC039; };
+		UIS006 /* DebugLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC051; };
 
 		/* Core */
 		CONST001 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC030; };
@@ -133,6 +135,7 @@
 		SRC009 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		SRC010 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		SRC011 /* FileWatcherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileWatcherService.swift; sourceTree = "<group>"; };
+		SRC050 /* DebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
 
 		/* Core Managers */
 		SRC012 /* UsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManager.swift; sourceTree = "<group>"; };
@@ -162,6 +165,7 @@
 		SRC037 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		SRC038 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		SRC039 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		SRC051 /* DebugLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogView.swift; sourceTree = "<group>"; };
 
 		/* Core */
 		SRC030 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
@@ -315,6 +319,7 @@
 				SRC009 /* KeychainService.swift */,
 				SRC010 /* NotificationService.swift */,
 				SRC011 /* FileWatcherService.swift */,
+				SRC050 /* DebugLogger.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -380,6 +385,7 @@
 				SRC037 /* AppearanceSettingsView.swift */,
 				SRC038 /* NotificationSettingsView.swift */,
 				SRC039 /* AboutView.swift */,
+				SRC051 /* DebugLogView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -598,6 +604,7 @@
 				SVC002 /* KeychainService.swift in Sources */,
 				SVC003 /* NotificationService.swift in Sources */,
 				SVC004 /* FileWatcherService.swift in Sources */,
+				SVC005 /* DebugLogger.swift in Sources */,
 				MGR001 /* UsageManager.swift in Sources */,
 				MGR002 /* PollingManager.swift in Sources */,
 				MGR003 /* CacheManager.swift in Sources */,
@@ -617,6 +624,7 @@
 				UIS003 /* AppearanceSettingsView.swift in Sources */,
 				UIS004 /* NotificationSettingsView.swift in Sources */,
 				UIS005 /* AboutView.swift in Sources */,
+				UIS006 /* DebugLogView.swift in Sources */,
 				EXT001 /* Color+Extensions.swift in Sources */,
 				EXT002 /* Date+Extensions.swift in Sources */,
 				EXT003 /* String+Extensions.swift in Sources */,

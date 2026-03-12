@@ -151,6 +151,18 @@ class NotificationService: NotificationServiceProtocol {
             crossedThresholds.append(contentsOf: crossed)
         }
 
+        // Check Sonnet usage
+        if let sonnet = usage.sevenDaySonnet {
+            let crossed = checkThresholdsAggregated(
+                currentUsage: sonnet.utilization,
+                previousUsage: previousUsage?.sevenDaySonnet?.utilization,
+                windowName: "sonnet",
+                windowTitle: "Sonnet",
+                thresholds: thresholds
+            )
+            crossedThresholds.append(contentsOf: crossed)
+        }
+
         // Send aggregated notification if any thresholds were crossed
         if !crossedThresholds.isEmpty {
             sendAggregatedNotification(crossedThresholds: crossedThresholds)
@@ -251,6 +263,16 @@ class NotificationService: NotificationServiceProtocol {
             if drop > Constants.Notification.resetDropThreshold && currentOpus.utilization < Constants.Notification.resetLowThreshold {
                 resetWindows.append("Opus")
                 notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("opus_") }
+            }
+        }
+
+        // Check Sonnet reset
+        if let currentSonnet = current.sevenDaySonnet,
+           let previousSonnet = previous.sevenDaySonnet {
+            let drop = previousSonnet.utilization - currentSonnet.utilization
+            if drop > Constants.Notification.resetDropThreshold && currentSonnet.utilization < Constants.Notification.resetLowThreshold {
+                resetWindows.append("Sonnet")
+                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("sonnet_") }
             }
         }
 

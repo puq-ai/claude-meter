@@ -152,8 +152,8 @@ extension AppError {
             return .serverError(statusCode: code, message: nil)
         case .unauthorized:
             return .invalidCredentials
-        case .rateLimited:
-            return .rateLimited(retryAfter: nil)
+        case .rateLimited(let retryAfter):
+            return .rateLimited(retryAfter: retryAfter)
         case .networkError(let error):
             return .unknown(error.localizedDescription)
         case .maxRetriesExceeded:
