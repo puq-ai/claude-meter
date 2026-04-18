@@ -172,6 +172,14 @@ struct PopoverView: View {
                     )
                 }
 
+                if appState.settings.showDesignLimit, let design = data.sevenDayDesign {
+                    UsageCardView(
+                        title: "Claude Design",
+                        usage: design.utilization,
+                        resetsAt: design.resetsAt
+                    )
+                }
+
                 if appState.settings.showExtraUsage, let extra = data.extraUsage, extra.isEnabled {
                     extraUsageCardView(extra: extra)
                 }

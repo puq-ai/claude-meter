@@ -15,6 +15,7 @@ struct UsageData: Codable, Equatable {
     let sevenDaySonnet: UsageWindow?
     let sevenDayOauthApps: UsageWindow?
     let sevenDayCowork: UsageWindow?
+    let sevenDayDesign: UsageWindow?
     let extraUsage: ExtraUsage?
     let fetchedAt: Date
 
@@ -26,18 +27,21 @@ struct UsageData: Codable, Equatable {
         case sevenDaySonnet = "seven_day_sonnet"
         case sevenDayOauthApps = "seven_day_oauth_apps"
         case sevenDayCowork = "seven_day_cowork"
+        // Claude Design — server returns the internal codename for now
+        case sevenDayDesign = "seven_day_omelette"
         case extraUsage = "extra_usage"
         case fetchedAt = "fetched_at"
     }
 
     // Custom initializer for creating instances programmatically
-    init(fiveHour: UsageWindow?, sevenDay: UsageWindow?, sevenDayOpus: UsageWindow?, sevenDaySonnet: UsageWindow? = nil, sevenDayOauthApps: UsageWindow? = nil, sevenDayCowork: UsageWindow? = nil, extraUsage: ExtraUsage? = nil, fetchedAt: Date = Date()) {
+    init(fiveHour: UsageWindow?, sevenDay: UsageWindow?, sevenDayOpus: UsageWindow?, sevenDaySonnet: UsageWindow? = nil, sevenDayOauthApps: UsageWindow? = nil, sevenDayCowork: UsageWindow? = nil, sevenDayDesign: UsageWindow? = nil, extraUsage: ExtraUsage? = nil, fetchedAt: Date = Date()) {
         self.fiveHour = fiveHour
         self.sevenDay = sevenDay
         self.sevenDayOpus = sevenDayOpus
         self.sevenDaySonnet = sevenDaySonnet
         self.sevenDayOauthApps = sevenDayOauthApps
         self.sevenDayCowork = sevenDayCowork
+        self.sevenDayDesign = sevenDayDesign
         self.extraUsage = extraUsage
         self.fetchedAt = fetchedAt
     }
@@ -50,6 +54,7 @@ struct UsageData: Codable, Equatable {
         sevenDaySonnet = try container.decodeIfPresent(UsageWindow.self, forKey: .sevenDaySonnet)
         sevenDayOauthApps = try container.decodeIfPresent(UsageWindow.self, forKey: .sevenDayOauthApps)
         sevenDayCowork = try container.decodeIfPresent(UsageWindow.self, forKey: .sevenDayCowork)
+        sevenDayDesign = try container.decodeIfPresent(UsageWindow.self, forKey: .sevenDayDesign)
         extraUsage = try container.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)
         // fetchedAt may not come from API, default to now
         fetchedAt = try container.decodeIfPresent(Date.self, forKey: .fetchedAt) ?? Date()

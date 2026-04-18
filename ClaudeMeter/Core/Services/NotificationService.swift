@@ -163,6 +163,18 @@ class NotificationService: NotificationServiceProtocol {
             crossedThresholds.append(contentsOf: crossed)
         }
 
+        // Check Claude Design usage
+        if let design = usage.sevenDayDesign {
+            let crossed = checkThresholdsAggregated(
+                currentUsage: design.utilization,
+                previousUsage: previousUsage?.sevenDayDesign?.utilization,
+                windowName: "design",
+                windowTitle: "Claude Design",
+                thresholds: thresholds
+            )
+            crossedThresholds.append(contentsOf: crossed)
+        }
+
         // Send aggregated notification if any thresholds were crossed
         if !crossedThresholds.isEmpty {
             sendAggregatedNotification(crossedThresholds: crossedThresholds)
@@ -273,6 +285,16 @@ class NotificationService: NotificationServiceProtocol {
             if drop > Constants.Notification.resetDropThreshold && currentSonnet.utilization < Constants.Notification.resetLowThreshold {
                 resetWindows.append("Sonnet")
                 notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("sonnet_") }
+            }
+        }
+
+        // Check Claude Design reset
+        if let currentDesign = current.sevenDayDesign,
+           let previousDesign = previous.sevenDayDesign {
+            let drop = previousDesign.utilization - currentDesign.utilization
+            if drop > Constants.Notification.resetDropThreshold && currentDesign.utilization < Constants.Notification.resetLowThreshold {
+                resetWindows.append("Claude Design")
+                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("design_") }
             }
         }
 

@@ -235,6 +235,18 @@ class APIService: APIServiceProtocol {
 
         let (data, response) = try await session.data(for: request)
 
+        #if DEBUG
+        if let jsonString = String(data: data, encoding: .utf8) {
+            let debugPath = "/tmp/claudemeter_debug.txt"
+            let entry = "[\(Date())] [WEB] Status: \((response as? HTTPURLResponse)?.statusCode ?? -1)\n\(jsonString)\n---\n"
+            if let existing = try? String(contentsOfFile: debugPath, encoding: .utf8) {
+                try? (existing + entry).write(toFile: debugPath, atomically: true, encoding: .utf8)
+            } else {
+                try? entry.write(toFile: debugPath, atomically: true, encoding: .utf8)
+            }
+        }
+        #endif
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.noData
         }

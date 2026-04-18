@@ -38,6 +38,7 @@ struct AppSettings: Codable, Equatable {
     var colorScheme: AppColorScheme = .auto
     var showInDock: Bool = false
     var showSonnetLimit: Bool = false
+    var showDesignLimit: Bool = true
     var showExtraUsage: Bool = false
 
     // Polling
