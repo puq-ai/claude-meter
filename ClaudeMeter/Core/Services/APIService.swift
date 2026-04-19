@@ -67,6 +67,9 @@ class APIService: APIServiceProtocol {
     private let baseURL = Constants.API.baseURL
     private let session: URLSession
     private let retryConfig: RetryConfiguration
+    #if DEBUG
+    private static let debugLogQueue = DispatchQueue(label: "ClaudeMeter.APIService.debugLogQueue")
+    #endif
 
     init(session: URLSession? = nil, retryConfig: RetryConfiguration = RetryConfiguration()) {
         if let session = session {
@@ -107,15 +110,7 @@ class APIService: APIServiceProtocol {
         let (data, response) = try await session.data(for: request)
 
         #if DEBUG
-        if let jsonString = String(data: data, encoding: .utf8) {
-            let debugPath = "/tmp/claudemeter_debug.txt"
-            let entry = "[\(Date())] Status: \((response as? HTTPURLResponse)?.statusCode ?? -1)\n\(jsonString)\n---\n"
-            if let existing = try? String(contentsOfFile: debugPath, encoding: .utf8) {
-                try? (existing + entry).write(toFile: debugPath, atomically: true, encoding: .utf8)
-            } else {
-                try? entry.write(toFile: debugPath, atomically: true, encoding: .utf8)
-            }
-        }
+        appendDebugLog(data: data, response: response)
         #endif
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -236,15 +231,7 @@ class APIService: APIServiceProtocol {
         let (data, response) = try await session.data(for: request)
 
         #if DEBUG
-        if let jsonString = String(data: data, encoding: .utf8) {
-            let debugPath = "/tmp/claudemeter_debug.txt"
-            let entry = "[\(Date())] [WEB] Status: \((response as? HTTPURLResponse)?.statusCode ?? -1)\n\(jsonString)\n---\n"
-            if let existing = try? String(contentsOfFile: debugPath, encoding: .utf8) {
-                try? (existing + entry).write(toFile: debugPath, atomically: true, encoding: .utf8)
-            } else {
-                try? entry.write(toFile: debugPath, atomically: true, encoding: .utf8)
-            }
-        }
+        appendDebugLog(data: data, response: response, source: "WEB")
         #endif
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -296,6 +283,51 @@ class APIService: APIServiceProtocol {
             throw APIError.serverError(statusCode: httpResponse.statusCode)
         }
     }
+
+    #if DEBUG
+    private func appendDebugLog(data: Data, response: URLResponse, source: String? = nil) {
+        guard let jsonString = String(data: data, encoding: .utf8) else {
+            return
+        }
+
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        let sourceLabel = source.map { "[\($0)] " } ?? ""
+        let entry = "[\(Date())] \(sourceLabel)Status: \(statusCode)\n\(jsonString)\n---\n"
+        let fileManager = FileManager.default
+
+        Self.debugLogQueue.sync {
+            let baseDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first ?? fileManager.temporaryDirectory
+            let debugURL = baseDirectory.appendingPathComponent("claudemeter_debug.txt")
+
+            do {
+                if !fileManager.fileExists(atPath: debugURL.path) {
+                    let created = fileManager.createFile(
+                        atPath: debugURL.path,
+                        contents: nil,
+                        attributes: [.posixPermissions: 0o600]
+                    )
+                    guard created else {
+                        print("APIService: Failed to create debug log file")
+                        return
+                    }
+                } else {
+                    try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: debugURL.path)
+                }
+
+                guard let entryData = entry.data(using: .utf8) else {
+                    return
+                }
+
+                let fileHandle = try FileHandle(forWritingTo: debugURL)
+                defer { fileHandle.closeFile() }
+                try fileHandle.seekToEnd()
+                try fileHandle.write(contentsOf: entryData)
+            } catch {
+                print("APIService: Failed to write debug log - \(error)")
+            }
+        }
+    }
+    #endif
 
     // MARK: - Headers
     private func headers(token: String) -> [String: String] {
