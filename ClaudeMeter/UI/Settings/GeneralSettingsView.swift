@@ -38,6 +38,8 @@ struct GeneralSettingsView: View {
 
                     Toggle("Show Sonnet Limit", isOn: $appState.settings.showSonnetLimit)
                         .help("Display Sonnet model usage limit in the usage view.")
+                    Toggle("Show Claude Design Limit", isOn: $appState.settings.showDesignLimit)
+                        .help("Display the Claude Design weekly limit (separate from Chat and Claude Code).")
                     Toggle("Show Extra Usage", isOn: $appState.settings.showExtraUsage)
                         .help("Display extra usage spending information.")
 

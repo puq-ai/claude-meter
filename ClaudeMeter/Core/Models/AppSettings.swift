@@ -38,6 +38,7 @@ struct AppSettings: Codable, Equatable {
     var colorScheme: AppColorScheme = .auto
     var showInDock: Bool = false
     var showSonnetLimit: Bool = false
+    var showDesignLimit: Bool = true
     var showExtraUsage: Bool = false
 
     // Polling
@@ -53,6 +54,41 @@ struct AppSettings: Codable, Equatable {
     // Web API Fallback (claude.ai session credentials)
     var webSessionKey: String = ""
     var webOrganizationId: String = ""
+
+    private enum CodingKeys: String, CodingKey {
+        case displayMode
+        case colorScheme
+        case showInDock
+        case showSonnetLimit
+        case showDesignLimit
+        case showExtraUsage
+        case refreshInterval
+        case launchAtLogin
+        case notifyAt
+        case notificationsEnabled
+        case webSessionKey
+        case webOrganizationId
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = AppSettings()
+
+        displayMode = try container.decodeIfPresent(DisplayMode.self, forKey: .displayMode) ?? defaults.displayMode
+        colorScheme = try container.decodeIfPresent(AppColorScheme.self, forKey: .colorScheme) ?? defaults.colorScheme
+        showInDock = try container.decodeIfPresent(Bool.self, forKey: .showInDock) ?? defaults.showInDock
+        showSonnetLimit = try container.decodeIfPresent(Bool.self, forKey: .showSonnetLimit) ?? defaults.showSonnetLimit
+        showDesignLimit = try container.decodeIfPresent(Bool.self, forKey: .showDesignLimit) ?? defaults.showDesignLimit
+        showExtraUsage = try container.decodeIfPresent(Bool.self, forKey: .showExtraUsage) ?? defaults.showExtraUsage
+        refreshInterval = try container.decodeIfPresent(Int.self, forKey: .refreshInterval) ?? defaults.refreshInterval
+        launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
+        notifyAt = try container.decodeIfPresent([Int].self, forKey: .notifyAt) ?? defaults.notifyAt
+        notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
+        webSessionKey = try container.decodeIfPresent(String.self, forKey: .webSessionKey) ?? defaults.webSessionKey
+        webOrganizationId = try container.decodeIfPresent(String.self, forKey: .webOrganizationId) ?? defaults.webOrganizationId
+    }
 
     // Computed property for backward compatibility
     var notifyAt90: Bool {
