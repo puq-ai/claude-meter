@@ -134,7 +134,14 @@ struct PopoverView: View {
     private func usageContentView(data: UsageData) -> some View {
         ScrollView {
             VStack(spacing: 12) {
-                if data.fiveHour == nil && data.sevenDay == nil && data.sevenDayOpus == nil {
+                let windows = data.displayWindows
+                // Scoped limits (per model or surface) are hideable; the overall windows
+                // always show.
+                let visibleWindows = windows.filter {
+                    !$0.isScoped || appState.settings.showScopedLimits
+                }
+
+                if windows.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "questionmark.circle")
                             .font(.system(size: 28))
@@ -148,40 +155,42 @@ struct PopoverView: View {
                     .padding(.vertical, 40)
                 }
 
-                if let fiveHour = data.fiveHour {
+                // Every limit the server reports, named by the server.
+                ForEach(visibleWindows) { window in
                     UsageCardView(
-                        title: "5-Hour Limit",
-                        usage: fiveHour.utilization,
-                        resetsAt: fiveHour.resetsAt
+                        title: window.title,
+                        usage: window.usage,
+                        resetsAt: window.resetsAt,
+                        severity: window.severity,
+                        isActive: window.isActive
                     )
                 }
 
-                if let sevenDay = data.sevenDay {
-                    UsageCardView(
-                        title: "7-Day Limit",
-                        usage: sevenDay.utilization,
-                        resetsAt: sevenDay.resetsAt
-                    )
+                // The server always sends the overall windows today, so this only shows if
+                // it ever reports scoped limits alone — without it the popover would look
+                // empty with no explanation.
+                if !windows.isEmpty && visibleWindows.isEmpty {
+                    Text("Model limits are hidden. Enable them in Settings.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
                 }
 
-                if appState.settings.showSonnetLimit, let sonnet = data.sevenDaySonnet {
-                    UsageCardView(
-                        title: "Sonnet Only",
-                        usage: sonnet.utilization,
-                        resetsAt: sonnet.resetsAt
-                    )
+                if appState.settings.showBreakdown,
+                   let breakdown = data.sevenDayBreakdown,
+                   !breakdown.significantRows.isEmpty {
+                    breakdownCardView(breakdown: breakdown)
                 }
 
-                if appState.settings.showDesignLimit, let design = data.sevenDayDesign {
-                    UsageCardView(
-                        title: "Claude Design",
-                        usage: design.utilization,
-                        resetsAt: design.resetsAt
-                    )
-                }
-
-                if appState.settings.showExtraUsage, let extra = data.extraUsage, extra.isEnabled {
-                    extraUsageCardView(extra: extra)
+                // `extra_usage.is_enabled` describes the credits feature; `spend.enabled`
+                // describes the spend the card actually renders. Either one being on is
+                // reason enough to show it.
+                if appState.settings.showExtraUsage,
+                   let extra = data.extraUsage,
+                   extra.isEnabled || data.spend?.enabled == true {
+                    extraUsageCardView(extra: extra, spend: data.spend)
                 }
             }
             .padding(.horizontal, contentPadding)
@@ -298,12 +307,66 @@ struct PopoverView: View {
         }
     }
 
+    // MARK: - Breakdown Card
+
+    /// Shows what is consuming the 7-day window (Claude Code / Chats / Cowork / Other).
+    ///
+    /// These are SHARES of consumption, not utilization. A 100% share is normal and must
+    /// never be painted with the usage thresholds, hence the neutral accent tint.
+    private func breakdownCardView(breakdown: SevenDayBreakdown) -> some View {
+        let rows = breakdown.significantRows
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("7-Day Breakdown")
+                    .font(.headline)
+                Spacer()
+            }
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                let percent = row.percent ?? 0
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(row.displayName ?? "Other")
+                            .font(.caption)
+                        Spacer()
+                        Text("\(Int(percent))%")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                    }
+
+                    ProgressBarView(
+                        progress: percent / 100.0,
+                        showPercentage: false,
+                        height: 4,
+                        tint: ColorTheme.accent
+                    )
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(row.displayName ?? "Other"): \(Int(percent)) percent of 7-day usage")
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+        )
+    }
+
     // MARK: - Extra Usage Card
 
-    private func extraUsageCardView(extra: ExtraUsage) -> some View {
-        let utilization = extra.utilization ?? 0
-        let progressColor = ColorTheme.colorForUsage(utilization)
-        let isCritical = utilization >= 90
+    private func extraUsageCardView(extra: ExtraUsage, spend: SpendInfo?) -> some View {
+        // `extra_usage` now reports null credit figures; `spend` carries the real numbers.
+        let utilization = extra.utilization ?? spend?.percent ?? 0
+        let progressColor = ColorTheme.colorForSeverity(spend?.severity, fallbackUsage: utilization)
+        let isCritical = spend?.severity == .critical || utilization >= 90
+
+        let spentAmount = extra.usedCredits.map { $0 / 100.0 } ?? spend?.used?.amount
+        let limitAmount = extra.monthlyLimit.map { $0 / 100.0 }
+        let currencyCode = spend?.used?.currency ?? extra.currency
 
         return VStack(spacing: 12) {
             // Header
@@ -328,16 +391,17 @@ struct PopoverView: View {
                     ProgressBarView(
                         progress: utilization / 100.0,
                         showPercentage: false,
-                        height: 6
+                        height: 6,
+                        tint: progressColor
                     )
                     .frame(maxWidth: .infinity)
 
                     // Spending info
-                    if let used = extra.usedCredits, let limit = extra.monthlyLimit {
+                    if let spent = spentAmount {
                         HStack(spacing: 4) {
                             Image(systemName: "dollarsign.circle")
                                 .font(.caption2)
-                            Text(String(format: "$%.2f spent of $%.0f limit", used / 100.0, limit / 100.0))
+                            Text(Self.spendDescription(spent: spent, limit: limitAmount, currencyCode: currencyCode))
                                 .font(.caption2)
                         }
                         .foregroundColor(.secondary)
@@ -353,6 +417,25 @@ struct PopoverView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .shadow(color: isCritical ? progressColor.opacity(0.3) : .clear, radius: isCritical ? 8 : 0)
+    }
+
+    /// Formats spend, honouring the server's currency instead of assuming dollars.
+    private static func spendDescription(spent: Double, limit: Double?, currencyCode: String?) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = currencyCode ?? "USD"
+
+        func format(_ value: Double, fractionDigits: Int) -> String {
+            formatter.minimumFractionDigits = fractionDigits
+            formatter.maximumFractionDigits = fractionDigits
+            return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.\(fractionDigits)f", value)
+        }
+
+        let spentText = format(spent, fractionDigits: 2)
+        guard let limit = limit else {
+            return "\(spentText) spent"
+        }
+        return "\(spentText) spent of \(format(limit, fractionDigits: 0)) limit"
     }
 
     // MARK: - Powered By View

@@ -115,62 +115,31 @@ class NotificationService: NotificationServiceProtocol {
         // Collect crossed thresholds for aggregated notification
         var crossedThresholds: [(windowTitle: String, threshold: Int, usage: Double)] = []
 
-        // Check 5-hour usage
-        if let fiveHour = usage.fiveHour {
-            let crossed = checkThresholdsAggregated(
-                currentUsage: fiveHour.utilization,
-                previousUsage: previousUsage?.fiveHour?.utilization,
-                windowName: "5h",
-                windowTitle: "5-Hour",
-                thresholds: thresholds
-            )
-            crossedThresholds.append(contentsOf: crossed)
-        }
+        // One loop over displayWindows instead of a block per window: whatever the API
+        // adds next (a new scoped model limit, a new surface) is notified automatically.
+        let previousWindows = previousUsage?.displayWindows
+        for window in usage.displayWindows {
+            let previous = previousWindows?.first { $0.id == window.id }?.usage
 
-        // Check 7-day usage
-        if let sevenDay = usage.sevenDay {
-            let crossed = checkThresholdsAggregated(
-                currentUsage: sevenDay.utilization,
-                previousUsage: previousUsage?.sevenDay?.utilization,
-                windowName: "7d",
-                windowTitle: "7-Day",
-                thresholds: thresholds
-            )
-            crossedThresholds.append(contentsOf: crossed)
-        }
+            // A window that appears out of nowhere BETWEEN two polls is almost always an
+            // existing limit under a new id — the server renamed the scope, started sending
+            // a scope id, or reordered unnamed entries. Treating its absence as 0% would
+            // re-fire every threshold the user has already been told about, so its state is
+            // seeded silently instead. A cold start (no previous response at all) still
+            // notifies, which is the long-standing behaviour for the 5h/7d windows.
+            //
+            // The emptiness check matters: a single malformed response yields no windows at
+            // all, and treating that as "everything was renamed" would seed — and therefore
+            // swallow — the next real threshold crossing.
+            let appearedSinceLastPoll = previousWindows?.isEmpty == false && previous == nil
 
-        // Check Opus usage
-        if let opus = usage.sevenDayOpus {
             let crossed = checkThresholdsAggregated(
-                currentUsage: opus.utilization,
-                previousUsage: previousUsage?.sevenDayOpus?.utilization,
-                windowName: "opus",
-                windowTitle: "Opus",
-                thresholds: thresholds
-            )
-            crossedThresholds.append(contentsOf: crossed)
-        }
-
-        // Check Sonnet usage
-        if let sonnet = usage.sevenDaySonnet {
-            let crossed = checkThresholdsAggregated(
-                currentUsage: sonnet.utilization,
-                previousUsage: previousUsage?.sevenDaySonnet?.utilization,
-                windowName: "sonnet",
-                windowTitle: "Sonnet",
-                thresholds: thresholds
-            )
-            crossedThresholds.append(contentsOf: crossed)
-        }
-
-        // Check Claude Design usage
-        if let design = usage.sevenDayDesign {
-            let crossed = checkThresholdsAggregated(
-                currentUsage: design.utilization,
-                previousUsage: previousUsage?.sevenDayDesign?.utilization,
-                windowName: "design",
-                windowTitle: "Claude Design",
-                thresholds: thresholds
+                currentUsage: window.usage,
+                previousUsage: previous,
+                windowName: window.id,
+                windowTitle: window.notificationName,
+                thresholds: thresholds,
+                seedOnly: appearedSinceLastPoll
             )
             crossedThresholds.append(contentsOf: crossed)
         }
@@ -185,39 +154,50 @@ class NotificationService: NotificationServiceProtocol {
     }
 
     /// Check thresholds and return crossed ones for aggregation
+    /// - Parameter seedOnly: Record the thresholds this limit is already above without
+    ///   notifying. Used when a limit shows up under an id we have never seen, so the
+    ///   user is not told again about a threshold they already crossed.
     private func checkThresholdsAggregated(
         currentUsage: Double,
         previousUsage: Double?,
         windowName: String,
         windowTitle: String,
-        thresholds: [Int]
+        thresholds: [Int],
+        seedOnly: Bool = false
     ) -> [(windowTitle: String, threshold: Int, usage: Double)] {
         var crossed: [(windowTitle: String, threshold: Int, usage: Double)] = []
+        var stateChanged = false
         let sortedThresholds = thresholds.sorted()
 
         for threshold in sortedThresholds {
             let key = "\(windowName)_\(threshold)"
             let previousValue = previousUsage ?? 0
 
-            // Check if we just crossed this threshold upward
-            if currentUsage >= Double(threshold) && previousValue < Double(threshold) {
+            if seedOnly {
+                // Adopt the current position silently; the next genuine crossing notifies.
+                if currentUsage >= Double(threshold) {
+                    stateChanged = notifiedThresholds.insert(key).inserted || stateChanged
+                }
+            } else if currentUsage >= Double(threshold) && previousValue < Double(threshold) {
+                // Just crossed this threshold upward
                 // Only notify if not already notified for this threshold
                 if !notifiedThresholds.contains(key) {
                     if let notificationType = NotificationType.forThreshold(threshold),
                        shouldSendNotification(type: notificationType) {
                         crossed.append((windowTitle: windowTitle, threshold: threshold, usage: currentUsage))
                         notifiedThresholds.insert(key)
+                        stateChanged = true
                     }
                 }
             }
 
             // Reset notification flag if usage dropped below threshold (with hysteresis)
             if currentUsage < Double(threshold) - hysteresisBuffer {
-                notifiedThresholds.remove(key)
+                stateChanged = notifiedThresholds.remove(key) != nil || stateChanged
             }
         }
 
-        if !crossed.isEmpty {
+        if stateChanged {
             saveNotificationState()
         }
 
@@ -247,56 +227,21 @@ class NotificationService: NotificationServiceProtocol {
 
         var resetWindows: [String] = []
 
-        // Check 5-hour reset - gradual detection (>40% drop)
-        if let currentFiveHour = current.fiveHour,
-           let previousFiveHour = previous.fiveHour {
-            let drop = previousFiveHour.utilization - currentFiveHour.utilization
-            if drop > Constants.Notification.resetDropThreshold && currentFiveHour.utilization < Constants.Notification.resetLowThreshold {
-                resetWindows.append("5-Hour")
-                // Clear 5h threshold notifications
-                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("5h_") }
+        // Gradual reset detection (>40% drop to a low value), driven by displayWindows so
+        // every limit — including newly introduced scoped ones — is covered.
+        let previousWindows = previous.displayWindows
+        for window in current.displayWindows {
+            guard let previousWindow = previousWindows.first(where: { $0.id == window.id }) else { continue }
+            let drop = previousWindow.usage - window.usage
+            if drop > Constants.Notification.resetDropThreshold && window.usage < Constants.Notification.resetLowThreshold {
+                resetWindows.append(window.notificationName)
+                // Clear this window's persisted threshold notifications.
+                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("\(window.id)_") }
             }
         }
 
-        // Check 7-day reset (less common) - gradual detection
-        if let currentSevenDay = current.sevenDay,
-           let previousSevenDay = previous.sevenDay {
-            let drop = previousSevenDay.utilization - currentSevenDay.utilization
-            if drop > Constants.Notification.resetDropThreshold && currentSevenDay.utilization < Constants.Notification.resetLowThreshold {
-                resetWindows.append("7-Day")
-                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("7d_") }
-            }
-        }
-
-        // Check Opus reset
-        if let currentOpus = current.sevenDayOpus,
-           let previousOpus = previous.sevenDayOpus {
-            let drop = previousOpus.utilization - currentOpus.utilization
-            if drop > Constants.Notification.resetDropThreshold && currentOpus.utilization < Constants.Notification.resetLowThreshold {
-                resetWindows.append("Opus")
-                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("opus_") }
-            }
-        }
-
-        // Check Sonnet reset
-        if let currentSonnet = current.sevenDaySonnet,
-           let previousSonnet = previous.sevenDaySonnet {
-            let drop = previousSonnet.utilization - currentSonnet.utilization
-            if drop > Constants.Notification.resetDropThreshold && currentSonnet.utilization < Constants.Notification.resetLowThreshold {
-                resetWindows.append("Sonnet")
-                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("sonnet_") }
-            }
-        }
-
-        // Check Claude Design reset
-        if let currentDesign = current.sevenDayDesign,
-           let previousDesign = previous.sevenDayDesign {
-            let drop = previousDesign.utilization - currentDesign.utilization
-            if drop > Constants.Notification.resetDropThreshold && currentDesign.utilization < Constants.Notification.resetLowThreshold {
-                resetWindows.append("Claude Design")
-                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("design_") }
-            }
-        }
+        // Note: keys for windows the server has stopped sending (sonnet_*, opus_*, design_*)
+        // linger in UserDefaults. They are inert — no migration needed.
 
         // Send aggregated reset notification
         if !resetWindows.isEmpty {

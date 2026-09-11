@@ -167,13 +167,8 @@ class AppState: ObservableObject {
     // MARK: - Adaptive Polling
 
     private func updatePollingInterval(_ data: UsageData) {
-        // Calculate max usage across all windows
-        let maxUsage = [
-            data.fiveHour?.utilization ?? 0,
-            data.sevenDay?.utilization ?? 0,
-            data.sevenDayOpus?.utilization ?? 0,
-            data.sevenDaySonnet?.utilization ?? 0
-        ].max() ?? 0
+        // Max across every window the server reports, scoped limits included.
+        let maxUsage = data.displayWindows.map(\.usage).max() ?? 0
 
         pollingManager.updateForUsage(maxUsage)
     }

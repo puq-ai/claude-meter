@@ -37,8 +37,11 @@ struct AppSettings: Codable, Equatable {
     var displayMode: DisplayMode = .compact
     var colorScheme: AppColorScheme = .auto
     var showInDock: Bool = false
-    var showSonnetLimit: Bool = false
-    var showDesignLimit: Bool = true
+    /// Show per-model / per-surface weekly limits reported in the API's `limits` array.
+    /// Replaces the old showSonnetLimit + showDesignLimit pair: the server no longer sends
+    /// those windows, and it now names each scoped limit itself, so one switch covers all.
+    var showScopedLimits: Bool = true
+    var showBreakdown: Bool = true
     var showExtraUsage: Bool = false
 
     // Polling
@@ -59,8 +62,8 @@ struct AppSettings: Codable, Equatable {
         case displayMode
         case colorScheme
         case showInDock
-        case showSonnetLimit
-        case showDesignLimit
+        case showScopedLimits
+        case showBreakdown
         case showExtraUsage
         case refreshInterval
         case launchAtLogin
@@ -79,8 +82,10 @@ struct AppSettings: Codable, Equatable {
         displayMode = try container.decodeIfPresent(DisplayMode.self, forKey: .displayMode) ?? defaults.displayMode
         colorScheme = try container.decodeIfPresent(AppColorScheme.self, forKey: .colorScheme) ?? defaults.colorScheme
         showInDock = try container.decodeIfPresent(Bool.self, forKey: .showInDock) ?? defaults.showInDock
-        showSonnetLimit = try container.decodeIfPresent(Bool.self, forKey: .showSonnetLimit) ?? defaults.showSonnetLimit
-        showDesignLimit = try container.decodeIfPresent(Bool.self, forKey: .showDesignLimit) ?? defaults.showDesignLimit
+        // Settings saved before the `limits` migration carry showSonnetLimit / showDesignLimit.
+        // Codable ignores unknown keys, so those simply fall through to the defaults here.
+        showScopedLimits = try container.decodeIfPresent(Bool.self, forKey: .showScopedLimits) ?? defaults.showScopedLimits
+        showBreakdown = try container.decodeIfPresent(Bool.self, forKey: .showBreakdown) ?? defaults.showBreakdown
         showExtraUsage = try container.decodeIfPresent(Bool.self, forKey: .showExtraUsage) ?? defaults.showExtraUsage
         refreshInterval = try container.decodeIfPresent(Int.self, forKey: .refreshInterval) ?? defaults.refreshInterval
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin

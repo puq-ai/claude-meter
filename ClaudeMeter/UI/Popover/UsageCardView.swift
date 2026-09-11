@@ -12,13 +12,17 @@ struct UsageCardView: View {
     let title: String
     let usage: Double // Percentage 0-100
     let resetsAt: Date?
+    /// Server-reported severity. Optional so existing call sites and previews keep working.
+    var severity: LimitSeverity? = nil
+    /// The limit the server says is currently binding — the one that will actually stop you.
+    var isActive: Bool = false
 
     private var progressColor: Color {
-        ColorTheme.colorForUsage(usage)
+        ColorTheme.colorForSeverity(severity, fallbackUsage: usage)
     }
 
     private var isCritical: Bool {
-        usage >= 90
+        severity == .critical || usage >= 90
     }
 
     private var usageLevel: String {
@@ -32,6 +36,9 @@ struct UsageCardView: View {
 
     private var accessibilityDescription: String {
         var description = "\(title): \(Int(usage)) percent, \(usageLevel) usage"
+        if isActive {
+            description += ", currently active limit"
+        }
         if let date = resetsAt {
             description += ". Resets in \(date.timeRemainingFormatted(style: .accessibilityFriendly))"
         }
@@ -65,7 +72,8 @@ struct UsageCardView: View {
                     ProgressBarView(
                         progress: usage / 100.0,
                         showPercentage: false,
-                        height: 6
+                        height: 6,
+                        tint: progressColor
                     )
                     .frame(maxWidth: .infinity)
 
