@@ -83,10 +83,11 @@ final class WebLoginController: NSObject {
         webView.uiDelegate = self
         self.webView = webView
 
-        // Said up front rather than after the user hits the wall: an embedded window cannot
-        // use a platform authenticator, so a passkey here only ever offers the cross-device
-        // path and then fails. Nothing in this app can change that.
-        let status = NSTextField(labelWithString: "Signing in with a passkey? Embedded windows can't use them - close this and use \u{201C}Enter a session key manually\u{201D} in Settings instead.")
+        // Said up front rather than after the user hits the wall: an embedded window has no
+        // access to a platform authenticator, so a passkey here only ever offers the
+        // cross-device path and then fails on Bluetooth pairing. Every other method works,
+        // so point at one instead of just naming the limitation.
+        let status = NSTextField(labelWithString: "Passkeys don't work in an embedded window - pick email sign-in on this page. Failing that, paste a session key under Settings.")
         status.font = .preferredFont(forTextStyle: .caption1)
         status.textColor = .secondaryLabelColor
         status.lineBreakMode = .byWordWrapping
