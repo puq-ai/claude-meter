@@ -17,6 +17,8 @@ class AppState: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var lastUpdateTime: Date?
     @Published var error: Error?
+    @Published var authState: AuthState = .unknown
+    @Published var dataSource: DataSource?
 
 
 
@@ -40,17 +42,20 @@ class AppState: ObservableObject {
     // Managers
     private let usageManager: UsageManager
     let pollingManager: PollingManager
+    private let keychainService: KeychainServiceProtocol
 
     private var cancellables = Set<AnyCancellable>()
 
-    init() {
+    init(keychainService: KeychainServiceProtocol = KeychainService()) {
         // PHASE 1: Sync, fast initialization
         self.usageManager = UsageManager()
         self.pollingManager = PollingManager()
+        self.keychainService = keychainService
 
         // Load settings from UserDefaults
         self.settings = AppSettings.load()
 
+        migrateWebSessionKeyIfNeeded()
         setupBindings()
         applySettings()
 
@@ -98,6 +103,45 @@ class AppState: ObservableObject {
         usageManager.$error
             .receive(on: DispatchQueue.main)
             .assign(to: &$error)
+
+        usageManager.$authState
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$authState)
+
+        usageManager.$dataSource
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$dataSource)
+    }
+
+    // MARK: - Authentication
+
+    /// Whether Claude Code CLI credentials are present right now. Read live rather than
+    /// cached: the CLI writes them to the Keychain, which the file watcher cannot see.
+    var hasCLICredentials: Bool {
+        usageManager.hasCredentials
+    }
+
+    var isWebSessionConfigured: Bool {
+        usageManager.isWebFallbackConfigured
+    }
+
+    /// Store a claude.ai session key obtained from the in-app login and refresh immediately.
+    func applyWebSession(sessionKey: String, organization: WebOrganization) {
+        try? keychainService.saveWebSessionKey(sessionKey)
+        var updated = settings
+        updated.webOrganizationId = organization.id
+        updated.webOrganizationName = organization.name
+        settings = updated   // one didSet, so applySettings runs once with both values
+        Task { await refresh(reason: "web_login") }
+    }
+
+    /// Forget the claude.ai session.
+    func signOutOfWebSession() {
+        try? keychainService.deleteWebSessionKey()
+        var updated = settings
+        updated.webOrganizationId = ""
+        updated.webOrganizationName = ""
+        settings = updated
     }
 
     // MARK: - Settings Management
@@ -110,15 +154,30 @@ class AppState: ObservableObject {
         settings.save()
     }
 
+    /// Move a session key left in UserDefaults by an earlier version into the Keychain.
+    /// Clearing it here also rewrites the settings blob without it, so the plaintext copy
+    /// does not linger on disk.
+    private func migrateWebSessionKeyIfNeeded() {
+        guard let legacy = settings.legacyWebSessionKey, !legacy.isEmpty else { return }
+        do {
+            try keychainService.saveWebSessionKey(legacy)
+            settings.legacyWebSessionKey = nil
+            print("AppState: migrated web session key from UserDefaults into the Keychain")
+        } catch {
+            print("AppState: web session key migration failed - \(error)")
+        }
+    }
+
     private func applySettings() {
         // Apply refresh interval to polling manager
         pollingManager.setDefaultInterval(TimeInterval(settings.refreshInterval))
 
-        // Apply web API fallback credentials
-        usageManager.webSessionKey = settings.webSessionKey
+        // Apply web API fallback credentials. The key comes from the Keychain; only the
+        // non-secret organization id lives in settings.
+        usageManager.webSessionKey = keychainService.readWebSessionKey() ?? ""
         usageManager.webOrganizationId = settings.webOrganizationId
         usageManager.onSessionKeyRefreshed = { [weak self] newKey in
-            self?.settings.webSessionKey = newKey
+            try? self?.keychainService.saveWebSessionKey(newKey)
         }
 
         // Apply dock visibility

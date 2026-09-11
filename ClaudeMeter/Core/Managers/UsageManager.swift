@@ -16,6 +16,30 @@ enum DataSource: String, Equatable {
     case cache
 }
 
+/// Whether the app can authenticate at all, and how.
+///
+/// Previously this was only ever implied by a generic error string, which meant a user who
+/// had never logged in saw "No Usage Data - click refresh" and a menu bar reading 0%.
+enum AuthState: Equatable {
+    /// No fetch has completed yet.
+    case unknown
+    /// Claude Code CLI credentials are usable.
+    case cliAuthenticated
+    /// CLI credentials are unusable but the claude.ai session is carrying us.
+    case webOnly
+    /// Nothing to authenticate with. This is the state that should offer a way in.
+    case needsLogin
+    /// Credentials exist but were rejected.
+    case failed(AppError)
+
+    var needsAttention: Bool {
+        switch self {
+        case .needsLogin, .failed: return true
+        case .unknown, .cliAuthenticated, .webOnly: return false
+        }
+    }
+}
+
 @MainActor
 class UsageManager: ObservableObject {
     @Published var usageData: UsageData?
@@ -29,6 +53,9 @@ class UsageManager: ObservableObject {
 
     /// Which source served `usageData`.
     @Published private(set) var dataSource: DataSource?
+
+    /// Whether the app can authenticate, and how. Drives the connect screen and the menu bar.
+    @Published private(set) var authState: AuthState = .unknown
 
     private let apiService: APIServiceProtocol
     private let keychainService: KeychainServiceProtocol
@@ -66,6 +93,7 @@ class UsageManager: ObservableObject {
         usageData = nil
         error = nil
         dataSource = nil
+        authState = .unknown
         isLoading = true
         print("UsageManager: Stale data invalidated, UI will show loading state")
     }
@@ -90,6 +118,7 @@ class UsageManager: ObservableObject {
         if shouldSkipPrimary {
             if let fallbackData = await tryWebAPIFallback() {
                 applySuccess(fallbackData, source: .webFallback)
+                authState = resolveAuthState()
                 return
             }
             // The fallback is the only source inside this window and it just failed.
@@ -117,6 +146,29 @@ class UsageManager: ObservableObject {
         } catch {
             await handleFetchFailure(error, localTokenLooksExpired: localTokenLooksExpired)
         }
+
+        authState = resolveAuthState()
+    }
+
+    /// Derive the auth state from what the primary reported and what ended up serving data.
+    private func resolveAuthState() -> AuthState {
+        let credentialProblem: AppError? = {
+            switch lastPrimaryError {
+            case .noCredentials, .invalidCredentials, .credentialsExpired,
+                 .keychainItemNotFound, .keychainReadFailed:
+                return lastPrimaryError
+            default:
+                return nil
+            }
+        }()
+
+        // Either the primary succeeded, or it failed for a reason unrelated to credentials
+        // (rate limit, server error) - the credentials themselves are fine.
+        guard let problem = credentialProblem else { return .cliAuthenticated }
+
+        if dataSource == .webFallback { return .webOnly }
+        if problem == .noCredentials { return .needsLogin }
+        return .failed(problem)
     }
 
     // MARK: - Failure Handling

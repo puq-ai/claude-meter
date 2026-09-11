@@ -279,6 +279,45 @@ class APIService: APIServiceProtocol {
         }
     }
 
+    func fetchOrganizations(sessionKey: String) async throws -> [WebOrganization] {
+        guard let url = URL(string: Constants.API.webBaseURL + Constants.API.webOrganizationsEndpoint) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(Constants.API.acceptType, forHTTPHeaderField: "Accept")
+        request.setValue("\(Constants.API.sessionCookieName)=\(sessionKey)", forHTTPHeaderField: "Cookie")
+        request.setValue(Constants.API.userAgent, forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+
+        #if DEBUG
+        appendDebugLog(data: data, response: response, source: "ORGS")
+        #endif
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.noData
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try JSONDecoder().decode(WebOrganizationList.self, from: data).organizations
+            } catch {
+                print("APIService: Organizations decoding error - \(error)")
+                throw APIError.decodingError
+            }
+        case 401, 403:
+            throw APIError.unauthorized
+        case 429:
+            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+            throw APIError.rateLimited(retryAfter: retryAfter)
+        default:
+            throw APIError.serverError(statusCode: httpResponse.statusCode)
+        }
+    }
+
     /// Read the rotated `sessionKey` the server handed back.
     ///
     /// Deliberately not hand-parsing `Set-Cookie`: Darwin comma-joins repeated headers, so a

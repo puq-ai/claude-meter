@@ -198,4 +198,73 @@ class APIServiceTests: XCTestCase {
             XCTAssertEqual(retryAfter, 42)
         }
     }
+
+    // MARK: - Organization discovery
+
+    func testOrganizations_DecodeBareArrayWithUUID() throws {
+        let json = """
+        [{ "uuid": "org-1", "name": "Personal", "capabilities": ["chat", "claude_pro"] }]
+        """.data(using: .utf8)!
+
+        let list = try JSONDecoder().decode(WebOrganizationList.self, from: json)
+
+        XCTAssertEqual(list.organizations.count, 1)
+        XCTAssertEqual(list.organizations.first?.id, "org-1")
+        XCTAssertEqual(list.organizations.first?.name, "Personal")
+    }
+
+    func testOrganizations_DecodeWrappedArrayWithIdKey() throws {
+        let json = """
+        { "organizations": [{ "id": "org-2", "name": "Work" }] }
+        """.data(using: .utf8)!
+
+        let list = try JSONDecoder().decode(WebOrganizationList.self, from: json)
+
+        XCTAssertEqual(list.organizations.first?.id, "org-2")
+        XCTAssertEqual(list.organizations.first?.capabilities, [])
+    }
+
+    func testOrganizations_PrefersOneThatCanChat() {
+        let organizations = [
+            WebOrganization(id: "a", name: "No chat", capabilities: ["api"]),
+            WebOrganization(id: "b", name: "Chat", capabilities: ["chat"])
+        ]
+
+        XCTAssertEqual(organizations.preferredForUsage?.id, "b")
+    }
+
+    func testOrganizations_FallsBackToFirstWhenNoneAdvertiseChat() {
+        let organizations = [
+            WebOrganization(id: "a", name: "First", capabilities: []),
+            WebOrganization(id: "b", name: "Second", capabilities: [])
+        ]
+
+        XCTAssertEqual(organizations.preferredForUsage?.id, "a")
+    }
+
+    func testFetchOrganizations_SendsSessionCookie() async throws {
+        var captured: URLRequest?
+        stubWeb(json: """
+        [{ "uuid": "org-9", "name": "Mine" }]
+        """, capture: { captured = $0 })
+
+        let organizations = try await sut.fetchOrganizations(sessionKey: "cookie-value")
+
+        XCTAssertEqual(captured?.value(forHTTPHeaderField: "Cookie"), "sessionKey=cookie-value")
+        XCTAssertEqual(organizations.first?.id, "org-9")
+    }
+
+    func testFetchOrganizations_Unauthorized() async {
+        stubWeb(statusCode: 401, json: "{}")
+
+        do {
+            _ = try await sut.fetchOrganizations(sessionKey: "stale")
+            XCTFail("Should throw")
+        } catch {
+            guard case APIError.unauthorized = error else {
+                XCTFail("Wrong error type: \(error)")
+                return
+            }
+        }
+    }
 }

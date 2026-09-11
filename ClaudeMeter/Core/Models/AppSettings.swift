@@ -54,9 +54,16 @@ struct AppSettings: Codable, Equatable {
     var notifyAt: [Int] = Constants.Settings.defaultNotifyThresholds
     var notificationsEnabled: Bool = true
 
-    // Web API Fallback (claude.ai session credentials)
-    var webSessionKey: String = ""
+    // Web API Fallback (claude.ai). The session key is a secret and lives in the Keychain,
+    // not here - only the non-secret organization id is persisted in UserDefaults.
     var webOrganizationId: String = ""
+    /// Display name for the connected organization. Non-secret, purely for the settings UI.
+    var webOrganizationName: String = ""
+
+    /// Session key left behind by versions that stored it in UserDefaults as plaintext.
+    /// Decoded so it can be migrated into the Keychain, and deliberately never re-encoded:
+    /// saving these settings drops it.
+    var legacyWebSessionKey: String?
 
     private enum CodingKeys: String, CodingKey {
         case displayMode
@@ -71,6 +78,24 @@ struct AppSettings: Codable, Equatable {
         case notificationsEnabled
         case webSessionKey
         case webOrganizationId
+        case webOrganizationName
+    }
+
+    /// Everything that is actually persisted. `webSessionKey` is intentionally absent.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(displayMode, forKey: .displayMode)
+        try container.encode(colorScheme, forKey: .colorScheme)
+        try container.encode(showInDock, forKey: .showInDock)
+        try container.encode(showScopedLimits, forKey: .showScopedLimits)
+        try container.encode(showBreakdown, forKey: .showBreakdown)
+        try container.encode(showExtraUsage, forKey: .showExtraUsage)
+        try container.encode(refreshInterval, forKey: .refreshInterval)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
+        try container.encode(notifyAt, forKey: .notifyAt)
+        try container.encode(notificationsEnabled, forKey: .notificationsEnabled)
+        try container.encode(webOrganizationId, forKey: .webOrganizationId)
+        try container.encode(webOrganizationName, forKey: .webOrganizationName)
     }
 
     init() {}
@@ -91,8 +116,9 @@ struct AppSettings: Codable, Equatable {
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? defaults.launchAtLogin
         notifyAt = try container.decodeIfPresent([Int].self, forKey: .notifyAt) ?? defaults.notifyAt
         notificationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? defaults.notificationsEnabled
-        webSessionKey = try container.decodeIfPresent(String.self, forKey: .webSessionKey) ?? defaults.webSessionKey
         webOrganizationId = try container.decodeIfPresent(String.self, forKey: .webOrganizationId) ?? defaults.webOrganizationId
+        webOrganizationName = try container.decodeIfPresent(String.self, forKey: .webOrganizationName) ?? defaults.webOrganizationName
+        legacyWebSessionKey = try container.decodeIfPresent(String.self, forKey: .webSessionKey)
     }
 
     // Computed property for backward compatibility

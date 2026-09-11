@@ -323,12 +323,31 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(decoded.launchAtLogin)
         XCTAssertEqual(decoded.notifyAt, [80, 90])
         XCTAssertFalse(decoded.notificationsEnabled)
-        XCTAssertEqual(decoded.webSessionKey, "session")
         XCTAssertEqual(decoded.webOrganizationId, "org")
+        // The session key is a secret and no longer lives in UserDefaults. A legacy value is
+        // still decoded so it can be migrated into the Keychain, then dropped on the next save.
+        XCTAssertEqual(decoded.legacyWebSessionKey, "session")
         // Unknown legacy keys are ignored and the replacements take their defaults,
         // so upgrading never throws and never silently hides the new limits.
         XCTAssertTrue(decoded.showScopedLimits)
         XCTAssertTrue(decoded.showBreakdown)
+    }
+
+    func testEncoding_NeverWritesTheSessionKeyBack() throws {
+        // Given a settings value carrying a legacy plaintext key
+        var settings = AppSettings()
+        settings.legacyWebSessionKey = "super-secret-cookie"
+        settings.webOrganizationId = "org-123"
+
+        // When it is persisted
+        let encoded = try JSONEncoder().encode(settings)
+        let raw = String(data: encoded, encoding: .utf8) ?? ""
+
+        // Then the secret is gone and the non-secret id remains
+        XCTAssertFalse(raw.contains("super-secret-cookie"),
+                       "the session key belongs in the Keychain, never in UserDefaults")
+        XCTAssertFalse(raw.contains("webSessionKey"))
+        XCTAssertTrue(raw.contains("org-123"))
     }
 }
 

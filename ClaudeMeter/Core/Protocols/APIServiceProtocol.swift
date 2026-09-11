@@ -28,4 +28,8 @@ protocol APIServiceProtocol {
     /// Fetch usage data from the web API (claude.ai) as a fallback
     /// Returns a tuple of (UsageData, refreshedSessionKey?)
     func fetchUsageFromWeb(sessionKey: String, organizationId: String) async throws -> (UsageData, String?)
+
+    /// List the organizations the claude.ai session can see, so the organization id can be
+    /// resolved automatically instead of being copied out of a browser URL by hand.
+    func fetchOrganizations(sessionKey: String) async throws -> [WebOrganization]
 }

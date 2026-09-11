@@ -223,6 +223,56 @@ final class UsageManagerFallbackTests: XCTestCase {
         XCTAssertEqual(sut.dataSource, .primary)
     }
 
+    // MARK: - Auth state
+
+    func testAuthState_NeedsLoginWhenNothingIsConfigured() async {
+        mockKeychainService.stubbedCredentials = nil
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .needsLogin)
+        XCTAssertTrue(sut.authState.needsAttention)
+    }
+
+    func testAuthState_WebOnlyWhenFallbackCarriesUs() async {
+        configureFallback()
+        mockKeychainService.stubbedCredentials = nil
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .webOnly)
+        XCTAssertFalse(sut.authState.needsAttention, "data is flowing; nothing to nag about")
+    }
+
+    func testAuthState_CLIAuthenticatedOnSuccess() async {
+        configurePrimary()
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .cliAuthenticated)
+    }
+
+    func testAuthState_RateLimitIsNotAnAuthProblem() async {
+        mockKeychainService.stubbedCredentials = TestData.makeCredentials()
+        mockAPIService.stubbedError = APIError.rateLimited(retryAfter: 30)
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .cliAuthenticated,
+                       "a 429 says nothing about whether the credentials are good")
+        XCTAssertFalse(sut.authState.needsAttention)
+    }
+
+    func testAuthState_FailedWhenCredentialsAreRejected() async {
+        mockKeychainService.stubbedCredentials = TestData.makeCredentials()
+        mockAPIService.stubbedError = APIError.unauthorized
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .failed(.invalidCredentials))
+        XCTAssertTrue(sut.authState.needsAttention)
+    }
+
     // MARK: - Provenance
 
     func testDataSource_ReportsCacheWhenEverythingFails() async {

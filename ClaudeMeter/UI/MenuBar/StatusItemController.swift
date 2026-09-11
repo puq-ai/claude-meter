@@ -55,18 +55,25 @@ class StatusItemController: NSObject {
 
     private func setupSubscriptions() {
         // Update menu bar based on usage and display mode
-        Publishers.CombineLatest(appState.$usageData, appState.$settings)
+        Publishers.CombineLatest3(appState.$usageData, appState.$settings, appState.$authState)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] data, settings in
-                self?.updateMenuBarDisplay(with: data, mode: settings.displayMode)
+            .sink { [weak self] data, settings, authState in
+                self?.updateMenuBarDisplay(with: data, mode: settings.displayMode, authState: authState)
             }
             .store(in: &cancellables)
     }
 
     // MARK: - Display Mode Rendering
 
-    private func updateMenuBarDisplay(with data: UsageData?, mode: DisplayMode) {
+    private func updateMenuBarDisplay(with data: UsageData?, mode: DisplayMode, authState: AuthState) {
         guard let button = statusItem?.button else { return }
+
+        // Without data, an auth failure used to render as a green 0% - a broken app that
+        // looks like a healthy one. Say so instead.
+        if data == nil, authState.needsAttention {
+            updateNeedsAttentionMode(button: button, mode: mode)
+            return
+        }
 
         // Use 5-hour usage for menu bar display. Read through displayWindows so the menu
         // bar keeps working off the `limits` array once the server stops sending the
@@ -81,6 +88,20 @@ class StatusItemController: NSObject {
         case .detailed:
             updateDetailedMode(button: button, data: data)
         }
+    }
+
+    // MARK: - Needs Attention (no credentials / rejected credentials)
+    private func updateNeedsAttentionMode(button: NSStatusBarButton, mode: DisplayMode) {
+        let symbol = NSImage(
+            systemSymbolName: "exclamationmark.triangle.fill",
+            accessibilityDescription: "ClaudeMeter needs you to sign in"
+        )
+        symbol?.isTemplate = true
+
+        button.image = symbol
+        button.imagePosition = mode == .iconOnly ? .imageOnly : .imageLeading
+        button.title = mode == .iconOnly ? "" : " --"
+        button.toolTip = "ClaudeMeter can't read your usage - click to connect an account"
     }
 
     // MARK: - Icon Only Mode

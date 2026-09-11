@@ -19,6 +19,9 @@
 		MOD004 /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC007; };
 		MOD005 /* TokenUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC040; };
 		MOD007 /* SubscriptionType.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC042; };
+		MOD008 /* WebOrganization.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC060; };
+		UIA001 /* WebLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC061; };
+		UIA002 /* ConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC062; };
 
 		/* Core Services */
 		SVC001 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC008; };
@@ -130,6 +133,9 @@
 		SRC007 /* Credentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Credentials.swift; sourceTree = "<group>"; };
 		SRC040 /* TokenUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsage.swift; sourceTree = "<group>"; };
 		SRC042 /* SubscriptionType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionType.swift; sourceTree = "<group>"; };
+		SRC060 /* WebOrganization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebOrganization.swift; sourceTree = "<group>"; };
+		SRC061 /* WebLoginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoginController.swift; sourceTree = "<group>"; };
+		SRC062 /* ConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectView.swift; sourceTree = "<group>"; };
 
 		/* Core Services */
 		SRC008 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
@@ -304,6 +310,7 @@
 		GRP_MODELS /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				SRC060 /* WebOrganization.swift */,
 				SRC004 /* AppSettings.swift */,
 				SRC005 /* AppError.swift */,
 				SRC006 /* UsageData.swift */,
@@ -343,8 +350,18 @@
 				GRP_POPOVER /* Popover */,
 				GRP_COMPONENTS /* Components */,
 				GRP_SETTINGS /* Settings */,
+				GRP_AUTH /* Auth */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		GRP_AUTH /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				SRC061 /* WebLoginController.swift */,
+				SRC062 /* ConnectView.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		GRP_MENUBAR /* MenuBar */ = {
@@ -603,6 +620,9 @@
 				MOD004 /* Credentials.swift in Sources */,
 				MOD005 /* TokenUsage.swift in Sources */,
 				MOD007 /* SubscriptionType.swift in Sources */,
+				MOD008 /* WebOrganization.swift in Sources */,
+				UIA001 /* WebLoginController.swift in Sources */,
+				UIA002 /* ConnectView.swift in Sources */,
 				SVC001 /* APIService.swift in Sources */,
 				SVC002 /* KeychainService.swift in Sources */,
 				SVC003 /* NotificationService.swift in Sources */,

@@ -26,36 +26,43 @@ class MockKeychainService: KeychainServiceProtocol {
     var stubbedHasCredentials = false
     var shouldThrowOnSave = false
     var shouldThrowOnRead = false
+    /// Which service the last save targeted - guards against writing into the CLI's item.
+    var lastSaveService: String?
 
     // MARK: - KeychainServiceProtocol
 
-    func save(data: Data, account: String) throws {
+    func save(data: Data, account: String, service: String) throws {
         saveCallCount += 1
+        lastSaveService = service
 
         if shouldThrowOnSave {
             throw KeychainError.unexpectedStatus(-1)
         }
 
-        storage[account] = data
+        storage[key(account, service)] = data
     }
 
-    func read(account: String) throws -> Data {
+    func read(account: String, service: String) throws -> Data {
         readCallCount += 1
 
         if shouldThrowOnRead {
             throw KeychainError.itemNotFound
         }
 
-        guard let data = storage[account] else {
+        guard let data = storage[key(account, service)] else {
             throw KeychainError.itemNotFound
         }
 
         return data
     }
 
-    func delete(account: String) throws {
+    func delete(account: String, service: String) throws {
         deleteCallCount += 1
-        storage.removeValue(forKey: account)
+        storage.removeValue(forKey: key(account, service))
+    }
+
+    private func key(_ account: String, _ service: String) -> String {
+        "\(service)/\(account)"
     }
 
     func getCredentials() throws -> ClaudeCredentials? {
@@ -81,5 +88,6 @@ class MockKeychainService: KeychainServiceProtocol {
         stubbedHasCredentials = false
         shouldThrowOnSave = false
         shouldThrowOnRead = false
+        lastSaveService = nil
     }
 }

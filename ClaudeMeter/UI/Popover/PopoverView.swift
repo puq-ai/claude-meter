@@ -62,7 +62,11 @@ struct PopoverView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if let data = appState.usageData {
+        // Checked before the data/error ladder: with nothing to authenticate with, neither
+        // "No Usage Data - click refresh" nor a raw error is an answer the user can act on.
+        if appState.authState == .needsLogin, appState.usageData == nil {
+            ConnectView(appState: appState)
+        } else if let data = appState.usageData {
             usageContentView(data: data)
         } else if let error = appState.error {
             errorView(error: error)
@@ -292,8 +296,22 @@ struct PopoverView: View {
                 Text(error.localizedDescription)
                     .font(.caption2)
                     .foregroundColor(ColorTheme.orange)
-                    .lineLimit(1)
+                    // Auth errors are the longest and the most important to read in full.
+                    // Cached data keeps them off the main view, so this is all the user sees.
+                    .lineLimit(appState.authState.needsAttention ? 3 : 1)
                     .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if appState.authState.needsAttention {
+                    Button("Reconnect") {
+                        WebLoginController.shared.present { sessionKey, organizations in
+                            guard let organization = organizations.preferredForUsage else { return }
+                            appState.applyWebSession(sessionKey: sessionKey, organization: organization)
+                        }
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption2)
+                }
             } else if let lastUpdate = appState.lastUpdateTime {
                 Text("Updated \(lastUpdate.relativeDescription)")
                     .font(.caption2)

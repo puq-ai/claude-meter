@@ -30,6 +30,11 @@ enum Constants {
         static let webBaseURL = "https://claude.ai"
         static let webUsageEndpoint = "/api/organizations/%@/usage"
         static let sessionCookieName = "sessionKey"
+        static let webOrganizationsEndpoint = "/api/organizations"
+        static let webLoginURL = "https://claude.ai/login"
+        /// The login page is loaded in a WKWebView, where the CLI's User-Agent is exactly
+        /// what trips bot detection. Usage requests keep `userAgent`.
+        static let webLoginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
     }
 
     // MARK: - Rate Limit Configuration
@@ -96,7 +101,17 @@ enum Constants {
 
     // MARK: - Keychain Configuration
     enum Keychain {
+        /// The Claude Code CLI's own Keychain item. Read-only as far as this app is
+        /// concerned: writing here would clobber the CLI's credentials.
         static let serviceName = "Claude Code-credentials"
+
+        /// Secrets this app owns. Deliberately a different service so nothing we write can
+        /// land in the CLI's item, and so a stray write can never be mistaken for the
+        /// CLI's OAuth blob by the account-less `security -s <service> -w` read.
+        static let appServiceName = "com.claudemeter.credentials"
+
+        /// Account under `appServiceName` holding the claude.ai session cookie.
+        static let webSessionAccount = "claude-ai-session"
     }
 
     // MARK: - FileWatcher Configuration

@@ -65,21 +65,87 @@ struct GeneralSettingsView: View {
                 }
                 .background(ScrollBarHider())
 
-                Section(header: Text("Web API Fallback")) {
-                    TextField("Organization ID", text: $appState.settings.webOrganizationId)
+                Section(header: Text("claude.ai Fallback")) {
+                    HStack {
+                        Image(systemName: isWebSessionConnected ? "checkmark.circle.fill" : "circle.dashed")
+                            .foregroundColor(isWebSessionConnected ? ColorTheme.green : .secondary)
+                        Text(connectionSummary)
+                            .font(.caption)
+                        Spacer()
+                        if isWebSessionConnected {
+                            Button("Sign Out") { appState.signOutOfWebSession() }
+                                .controlSize(.small)
+                        } else {
+                            Button("Sign In…") { startWebLogin() }
+                                .controlSize(.small)
+                                .disabled(isSigningIn)
+                        }
+                    }
+
+                    if discoveredOrganizations.count > 1 {
+                        Picker("Organization", selection: organizationSelection) {
+                            ForEach(discoveredOrganizations) { organization in
+                                Text(organization.name).tag(organization.id)
+                            }
+                        }
                         .font(.caption)
-                        .help("Your Claude organization UUID (from claude.ai URL)")
-                    SecureField("Session Key", text: $appState.settings.webSessionKey)
-                        .font(.caption)
-                        .help("sessionKey cookie from claude.ai browser session")
-                    Text("Used as backup when the OAuth API is rate limited.")
+                    }
+
+                    // The fallback runs on ANY primary API failure, not just rate limiting -
+                    // the old copy here said otherwise and was simply wrong.
+                    Text("Used whenever the Claude Code API can't be reached. Signing in stores a claude.ai session in your Keychain.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+
+                    DisclosureGroup("Advanced") {
+                        TextField("Organization ID", text: $appState.settings.webOrganizationId)
+                            .font(.caption)
+                            .help("Organization UUID from the claude.ai URL. Filled in automatically after signing in.")
+                    }
+                    .font(.caption)
                 }
             }
             .formStyle(.grouped)
             .scrollIndicators(.hidden)
 
+        }
+    }
+
+    // MARK: - claude.ai session
+
+    @State private var isSigningIn = false
+    @State private var discoveredOrganizations: [WebOrganization] = []
+
+    private var isWebSessionConnected: Bool {
+        appState.isWebSessionConfigured
+    }
+
+    private var connectionSummary: String {
+        guard isWebSessionConnected else { return "Not connected" }
+        let name = appState.settings.webOrganizationName
+        return name.isEmpty ? "Connected" : "Connected as \(name)"
+    }
+
+    private var organizationSelection: Binding<String> {
+        Binding(
+            get: { appState.settings.webOrganizationId },
+            set: { newId in
+                guard let organization = discoveredOrganizations.first(where: { $0.id == newId }) else { return }
+                var updated = appState.settings
+                updated.webOrganizationId = organization.id
+                updated.webOrganizationName = organization.name
+                appState.settings = updated
+            }
+        )
+    }
+
+    private func startWebLogin() {
+        isSigningIn = true
+        WebLoginController.shared.present { sessionKey, organizations in
+            isSigningIn = false
+            discoveredOrganizations = organizations
+            guard let organization = organizations.preferredForUsage else { return }
+            appState.applyWebSession(sessionKey: sessionKey, organization: organization)
         }
     }
 

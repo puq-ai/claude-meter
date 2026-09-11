@@ -30,6 +30,9 @@ class MockAPIService: APIServiceProtocol {
     var stubbedWebUsageData: UsageData?
     var stubbedWebError: Error?
     var stubbedRefreshedSessionKey: String?
+    var fetchOrganizationsCallCount = 0
+    var stubbedOrganizations: [WebOrganization] = []
+    var stubbedOrganizationsError: Error?
 
     // MARK: - APIServiceProtocol
 
@@ -85,6 +88,15 @@ class MockAPIService: APIServiceProtocol {
         return (data, stubbedRefreshedSessionKey)
     }
 
+    func fetchOrganizations(sessionKey: String) async throws -> [WebOrganization] {
+        fetchOrganizationsCallCount += 1
+        lastWebSessionKey = sessionKey
+        if let error = stubbedOrganizationsError {
+            throw error
+        }
+        return stubbedOrganizations
+    }
+
     // MARK: - Reset
 
     func reset() {
@@ -101,5 +113,8 @@ class MockAPIService: APIServiceProtocol {
         stubbedWebUsageData = nil
         stubbedWebError = nil
         stubbedRefreshedSessionKey = nil
+        fetchOrganizationsCallCount = 0
+        stubbedOrganizations = []
+        stubbedOrganizationsError = nil
     }
 }
