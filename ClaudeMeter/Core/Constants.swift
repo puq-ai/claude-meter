@@ -35,6 +35,9 @@ enum Constants {
         /// The login page is loaded in a WKWebView, where the CLI's User-Agent is exactly
         /// what trips bot detection. Usage requests keep `userAgent`.
         static let webLoginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+        /// Requests to claude.ai identify as a browser; it is a web front end, not the API
+        /// the CLI talks to, and its bot management rejects the CLI's User-Agent.
+        static let webUserAgent = webLoginUserAgent
     }
 
     // MARK: - Rate Limit Configuration

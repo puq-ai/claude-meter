@@ -88,7 +88,7 @@ class MockAPIService: APIServiceProtocol {
         return (data, stubbedRefreshedSessionKey)
     }
 
-    func fetchOrganizations(sessionKey: String) async throws -> [WebOrganization] {
+    func fetchOrganizations(sessionKey: String, cookies: [HTTPCookie]) async throws -> [WebOrganization] {
         fetchOrganizationsCallCount += 1
         lastWebSessionKey = sessionKey
         if let error = stubbedOrganizationsError {

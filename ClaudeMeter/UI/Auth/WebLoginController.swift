@@ -43,10 +43,18 @@ final class WebLoginController: NSObject {
     private var timeoutTask: Task<Void, Never>?
     private var validationTask: Task<Void, Never>?
 
-    /// Candidates already checked, so a cookie set before sign-in completes isn't re-validated
-    /// on every change notification.
-    private var rejectedKeys: Set<String> = []
+    /// When each candidate was last checked. Deliberately not a permanent reject list: the
+    /// same cookie value is often elevated server-side once sign-in completes, so a key that
+    /// failed a moment ago is worth trying again rather than being written off forever.
+    private var lastAttempt: [String: Date] = [:]
+    private var firstCandidateSeenAt: Date?
+    private var pollTask: Task<Void, Never>?
     private var hasDelivered = false
+
+    /// How long before a candidate is worth re-checking.
+    private static let retryInterval: TimeInterval = 4
+    /// How long a key can keep being rejected before we stop staying quiet about it.
+    private static let quietFailureGracePeriod: TimeInterval = 45
 
     private let apiService: APIServiceProtocol
 
@@ -66,7 +74,8 @@ final class WebLoginController: NSObject {
 
         self.completion = completion
         self.hasDelivered = false
-        self.rejectedKeys = []
+        self.lastAttempt = [:]
+        self.firstCandidateSeenAt = nil
 
         let store = WKWebsiteDataStore.nonPersistent()
         self.dataStore = store
@@ -123,6 +132,18 @@ final class WebLoginController: NSObject {
             webView.load(URLRequest(url: url))
         }
 
+        // Poll rather than trusting cookie notifications alone. claude.ai is a single-page
+        // app, so signing in often completes without a main-frame navigation, and
+        // `cookiesDidChange` is not dependable enough to be the only trigger - relying on
+        // them meant a successful sign-in could leave the window sitting there doing nothing.
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.captureSessionKeyIfReady()
+            }
+        }
+
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.timeout * 1_000_000_000))
             guard !Task.isCancelled else { return }
@@ -149,6 +170,8 @@ final class WebLoginController: NSObject {
     private func teardown() {
         timeoutTask?.cancel()
         timeoutTask = nil
+        pollTask?.cancel()
+        pollTask = nil
         validationTask?.cancel()
         validationTask = nil
 
@@ -179,12 +202,18 @@ final class WebLoginController: NSObject {
 
         store.getAllCookies { [weak self] cookies in
             guard let self else { return }
-            let candidate = cookies.first {
-                $0.name == Constants.API.sessionCookieName && $0.domain.contains("claude.ai")
-            }?.value
+            let claudeCookies = cookies.filter { $0.domain.contains("claude.ai") }
+            guard let candidate = claudeCookies.first(where: { $0.name == Constants.API.sessionCookieName })?.value,
+                  !candidate.isEmpty else { return }
 
-            guard let candidate, !candidate.isEmpty, !self.rejectedKeys.contains(candidate) else { return }
-            self.validate(candidate)
+            if self.firstCandidateSeenAt == nil { self.firstCandidateSeenAt = Date() }
+
+            if let last = self.lastAttempt[candidate],
+               Date().timeIntervalSince(last) < Self.retryInterval {
+                return
+            }
+            self.lastAttempt[candidate] = Date()
+            self.validate(candidate, cookies: claudeCookies)
         }
     }
 
@@ -194,7 +223,7 @@ final class WebLoginController: NSObject {
     ///
     /// The inner guard matters: `getAllCookies` is async, so two rapid change notifications can
     /// both reach this method before either sets `validationTask`.
-    private func validate(_ sessionKey: String) {
+    private func validate(_ sessionKey: String, cookies: [HTTPCookie]) {
         guard validationTask == nil else { return }
 
         validationTask = Task { [weak self] in
@@ -202,13 +231,12 @@ final class WebLoginController: NSObject {
             defer { self.validationTask = nil }
 
             do {
-                let organizations = try await self.apiService.fetchOrganizations(sessionKey: sessionKey)
+                let organizations = try await self.apiService.fetchOrganizations(sessionKey: sessionKey, cookies: cookies)
                 guard !Task.isCancelled, !self.hasDelivered else { return }
 
                 guard !organizations.isEmpty else {
                     // A working session that reports no organizations is not something waiting
                     // longer will fix.
-                    self.rejectedKeys.insert(sessionKey)
                     self.showStatus("Signed in, but this account has no organizations ClaudeMeter can read usage for.")
                     return
                 }
@@ -216,14 +244,17 @@ final class WebLoginController: NSObject {
                 self.finish(.signedIn(sessionKey: sessionKey, organizations: organizations))
             } catch APIError.unauthorized {
                 // Expected until sign-in completes: the cookie exists but isn't authenticated
-                // yet. Stay quiet and wait for the next one.
-                self.rejectedKeys.insert(sessionKey)
+                // yet. Stay quiet - but not indefinitely, or a sign-in that succeeds while the
+                // session stays unusable looks exactly like nothing happening.
+                if let since = self.firstCandidateSeenAt,
+                   Date().timeIntervalSince(since) > Self.quietFailureGracePeriod {
+                    self.showStatus("Signed in, but claude.ai is still rejecting the session. Close this and paste a session key under Settings instead.")
+                }
             } catch {
                 // Anything else means the endpoint isn't answering the way we expect, and
                 // retrying won't help. Say so rather than leaving the window spinning until
                 // the timeout.
-                self.rejectedKeys.insert(sessionKey)
-                self.showStatus("Couldn't confirm the session: \(error.localizedDescription). You can close this and enter the organization ID manually under Settings › Advanced.")
+                self.showStatus("Couldn't confirm the session: \(error.localizedDescription). You can close this and paste a session key under Settings instead.")
                 print("WebLoginController: organization lookup failed - \(error)")
             }
         }

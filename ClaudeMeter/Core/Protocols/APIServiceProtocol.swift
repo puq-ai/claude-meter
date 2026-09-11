@@ -31,5 +31,14 @@ protocol APIServiceProtocol {
 
     /// List the organizations the claude.ai session can see, so the organization id can be
     /// resolved automatically instead of being copied out of a browser URL by hand.
-    func fetchOrganizations(sessionKey: String) async throws -> [WebOrganization]
+    /// - Parameter cookies: every cookie the browser session holds. claude.ai sits behind a
+    ///   bot-management layer that sets its own cookies; sending only `sessionKey` gets the
+    ///   request rejected even when the session itself is valid.
+    func fetchOrganizations(sessionKey: String, cookies: [HTTPCookie]) async throws -> [WebOrganization]
+}
+
+extension APIServiceProtocol {
+    func fetchOrganizations(sessionKey: String) async throws -> [WebOrganization] {
+        try await fetchOrganizations(sessionKey: sessionKey, cookies: [])
+    }
 }
