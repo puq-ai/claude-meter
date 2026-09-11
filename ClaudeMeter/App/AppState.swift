@@ -43,14 +43,19 @@ class AppState: ObservableObject {
     private let usageManager: UsageManager
     let pollingManager: PollingManager
     private let keychainService: KeychainServiceProtocol
+    private let apiService: APIServiceProtocol
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(keychainService: KeychainServiceProtocol = KeychainService()) {
+    init(
+        keychainService: KeychainServiceProtocol = KeychainService(),
+        apiService: APIServiceProtocol = APIService()
+    ) {
         // PHASE 1: Sync, fast initialization
         self.usageManager = UsageManager()
         self.pollingManager = PollingManager()
         self.keychainService = keychainService
+        self.apiService = apiService
 
         // Load settings from UserDefaults
         self.settings = AppSettings.load()
@@ -133,6 +138,43 @@ class AppState: ObservableObject {
         updated.webOrganizationName = organization.name
         settings = updated   // one didSet, so applySettings runs once with both values
         Task { await refresh(reason: "web_login") }
+    }
+
+    /// Connect using a session key the user supplied themselves, for the cases the embedded
+    /// sign-in can't serve - passkeys and some identity providers refuse to run inside an
+    /// embedded web view, and that is their policy, not something this app can work around.
+    ///
+    /// Only the key is asked for: the organization is still resolved automatically, so this
+    /// is one value to paste rather than the two the old settings screen demanded.
+    func connectWebSession(sessionKey: String) async -> WebSessionConnectionResult {
+        let key = Self.normalizeSessionKey(sessionKey)
+        guard !key.isEmpty else {
+            return .failed("Paste the value of the sessionKey cookie from claude.ai.")
+        }
+
+        do {
+            let organizations = try await apiService.fetchOrganizations(sessionKey: key)
+            guard let organization = organizations.preferredForUsage else {
+                return .noOrganizations
+            }
+            applyWebSession(sessionKey: key, organization: organization)
+            return .connected(organization)
+        } catch APIError.unauthorized {
+            return .failed("That session key was rejected. Copy it again - it may have expired.")
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+    }
+
+    /// Accepts either the bare value or a copied `sessionKey=...` pair, since both are easy
+    /// things to end up with on the clipboard.
+    private static func normalizeSessionKey(_ raw: String) -> String {
+        var key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let range = key.range(of: "\(Constants.API.sessionCookieName)=") {
+            key = String(key[range.upperBound...])
+        }
+        return key.split(separator: ";").first.map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? key
     }
 
     /// Forget the claude.ai session.

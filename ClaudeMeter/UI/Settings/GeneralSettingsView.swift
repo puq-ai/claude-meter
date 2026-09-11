@@ -97,10 +97,41 @@ struct GeneralSettingsView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
-                    DisclosureGroup("Advanced") {
-                        TextField("Organization ID", text: $appState.settings.webOrganizationId)
-                            .font(.caption)
-                            .help("Organization UUID from the claude.ai URL. Filled in automatically after signing in.")
+                    DisclosureGroup("Enter a session key manually") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            // Passkeys and some identity providers refuse to run inside an
+                            // embedded web view. Pasting the cookie is the way through when
+                            // the in-app sign-in can't work.
+                            Text("If signing in above doesn't work, sign in to claude.ai in your browser, copy the `sessionKey` cookie, and paste it here. The organization is found for you.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            HStack {
+                                SecureField("sessionKey", text: $manualSessionKey)
+                                    .font(.caption)
+                                Button("Connect") { connectManualSession() }
+                                    .controlSize(.small)
+                                    .disabled(manualSessionKey.isEmpty || isConnectingManually)
+                            }
+
+                            if isConnectingManually {
+                                HStack(spacing: 4) {
+                                    ProgressView().controlSize(.small)
+                                    Text("Checking…").font(.caption2).foregroundColor(.secondary)
+                                }
+                            } else if let message = manualStatusMessage {
+                                Text(message)
+                                    .font(.caption2)
+                                    .foregroundColor(manualStatusIsError ? ColorTheme.orange : ColorTheme.green)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            TextField("Organization ID", text: $appState.settings.webOrganizationId)
+                                .font(.caption)
+                                .help("Filled in automatically. Only set this by hand if discovery fails.")
+                        }
+                        .padding(.top, 4)
                     }
                     .font(.caption)
                 }
@@ -115,6 +146,10 @@ struct GeneralSettingsView: View {
 
     @State private var isSigningIn = false
     @State private var discoveredOrganizations: [WebOrganization] = []
+    @State private var manualSessionKey = ""
+    @State private var isConnectingManually = false
+    @State private var manualStatusMessage: String?
+    @State private var manualStatusIsError = false
 
     private var isWebSessionConnected: Bool {
         appState.isWebSessionConfigured
@@ -137,6 +172,30 @@ struct GeneralSettingsView: View {
                 appState.settings = updated
             }
         )
+    }
+
+    private func connectManualSession() {
+        isConnectingManually = true
+        manualStatusMessage = nil
+        let key = manualSessionKey
+
+        Task {
+            let result = await appState.connectWebSession(sessionKey: key)
+            isConnectingManually = false
+
+            switch result {
+            case .connected(let organization):
+                manualStatusIsError = false
+                manualStatusMessage = "Connected as \(organization.name)."
+                manualSessionKey = ""   // it is stored in the Keychain now
+            case .noOrganizations:
+                manualStatusIsError = true
+                manualStatusMessage = "That session works but reports no organizations."
+            case .failed(let reason):
+                manualStatusIsError = true
+                manualStatusMessage = reason
+            }
+        }
     }
 
     private func startWebLogin() {

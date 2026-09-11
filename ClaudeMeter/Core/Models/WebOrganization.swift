@@ -76,3 +76,10 @@ extension Array where Element == WebOrganization {
         first { $0.capabilities.contains("chat") } ?? first
     }
 }
+
+/// Outcome of connecting a claude.ai session by hand.
+enum WebSessionConnectionResult {
+    case connected(WebOrganization)
+    case noOrganizations
+    case failed(String)
+}

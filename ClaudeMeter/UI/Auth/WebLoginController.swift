@@ -73,11 +73,14 @@ final class WebLoginController: NSObject {
 
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = store
+        // Identity providers hand off through a popup; without this the call is a no-op.
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         // A browser User-Agent: the CLI's is exactly what a login page's bot detection rejects.
         webView.customUserAgent = Constants.API.webLoginUserAgent
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         self.webView = webView
 
         let status = NSTextField(labelWithString: "")
@@ -148,6 +151,7 @@ final class WebLoginController: NSObject {
 
         dataStore?.httpCookieStore.remove(self)
         webView?.navigationDelegate = nil
+        webView?.uiDelegate = nil
         webView = nil
         // Dropping the non-persistent store discards the browser session with it.
         dataStore = nil
@@ -232,11 +236,48 @@ extension WebLoginController: WKHTTPCookieStoreObserver {
     }
 }
 
+// MARK: - WKUIDelegate
+
+extension WebLoginController: WKUIDelegate {
+    /// "Continue with Google" and friends open their flow in a new window (`target="_blank"`
+    /// or `window.open`). WKWebView discards those unless this is implemented, so the button
+    /// silently did nothing. Load the request in the existing view instead.
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        if navigationAction.targetFrame?.isMainFrame != true,
+           let url = navigationAction.request.url {
+            webView.load(URLRequest(url: url))
+        }
+        return nil
+    }
+}
+
 // MARK: - WKNavigationDelegate
 
 extension WebLoginController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        checkForBlockedProvider(webView.url)
         captureSessionKeyIfReady()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        // Ignore the cancellations WebKit reports for ordinary redirects.
+        let nsError = error as NSError
+        guard !(nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled) else { return }
+        showStatus("Couldn't load the page: \(error.localizedDescription)")
+    }
+
+    /// Some identity providers refuse to run their sign-in flow inside an embedded view at
+    /// all. That is their policy and nothing here can change it, so say so plainly rather
+    /// than leaving the user on a dead page.
+    private func checkForBlockedProvider(_ url: URL?) {
+        guard let value = url?.absoluteString.lowercased(),
+              value.contains("disallowed_useragent") || value.contains("browser_not_secure") else { return }
+        showStatus("This sign-in provider blocks embedded browsers. Use email sign-in here, or connect the Claude Code CLI instead.")
     }
 }
 
