@@ -225,8 +225,8 @@ class APIService: APIServiceProtocol {
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
-        request.setValue(Constants.API.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("\(Constants.API.sessionCookieName)=\(sessionKey)", forHTTPHeaderField: "Cookie")
+        request.setValue(Constants.API.webUserAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)
 
@@ -259,15 +259,10 @@ class APIService: APIServiceProtocol {
                 }
                 let decoded = try decoder.decode(UsageData.self, from: data)
 
-                // Extract refreshed sessionKey from set-cookie header
-                let refreshedSessionKey: String? = {
-                    guard let setCookie = httpResponse.value(forHTTPHeaderField: "Set-Cookie") else { return nil }
-                    let components = setCookie.components(separatedBy: ";")
-                    guard let keyValue = components.first(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("sessionKey=") }) else { return nil }
-                    return keyValue.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "sessionKey=", with: "")
-                }()
-
-                return (decoded, refreshedSessionKey)
+                // Report the key only when the server actually rotated it, so a routine
+                // poll doesn't churn the stored credential.
+                let candidate = rotatedSessionKey(from: httpResponse, url: url)
+                return (decoded, candidate == sessionKey ? nil : candidate)
             } catch {
                 print("APIService: Web API decoding error - \(error)")
                 throw APIError.decodingError
@@ -282,6 +277,82 @@ class APIService: APIServiceProtocol {
         default:
             throw APIError.serverError(statusCode: httpResponse.statusCode)
         }
+    }
+
+    func fetchOrganizations(sessionKey: String, cookies: [HTTPCookie]) async throws -> [WebOrganization] {
+        guard let url = URL(string: Constants.API.webBaseURL + Constants.API.webOrganizationsEndpoint) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(Constants.API.acceptType, forHTTPHeaderField: "Accept")
+        request.setValue(Self.cookieHeader(sessionKey: sessionKey, cookies: cookies), forHTTPHeaderField: "Cookie")
+        // claude.ai is a web front end, not the CLI's API: identify as a browser.
+        request.setValue(Constants.API.webUserAgent, forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+
+        #if DEBUG
+        appendDebugLog(data: data, response: response, source: "ORGS")
+        #endif
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.noData
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            do {
+                return try JSONDecoder().decode(WebOrganizationList.self, from: data).organizations
+            } catch {
+                print("APIService: Organizations decoding error - \(error)")
+                throw APIError.decodingError
+            }
+        case 401, 403:
+            throw APIError.unauthorized
+        case 429:
+            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+            throw APIError.rateLimited(retryAfter: retryAfter)
+        default:
+            throw APIError.serverError(statusCode: httpResponse.statusCode)
+        }
+    }
+
+    /// Build a Cookie header from the browser session, guaranteeing `sessionKey` is present
+    /// even if it wasn't among the cookies handed in.
+    private static func cookieHeader(sessionKey: String, cookies: [HTTPCookie]) -> String {
+        var pairs = cookies
+            .filter { $0.name != Constants.API.sessionCookieName }
+            .map { "\($0.name)=\($0.value)" }
+        pairs.insert("\(Constants.API.sessionCookieName)=\(sessionKey)", at: 0)
+        return pairs.joined(separator: "; ")
+    }
+
+    /// Read the rotated `sessionKey` the server handed back.
+    ///
+    /// Deliberately not hand-parsing `Set-Cookie`: Darwin comma-joins repeated headers, so a
+    /// naive split silently drops the key whenever `sessionKey` isn't the first cookie in the
+    /// response. Prefer the session's cookie store, which has already parsed the response,
+    /// and fall back to Foundation's header parser when the store holds nothing.
+    private func rotatedSessionKey(from httpResponse: HTTPURLResponse, url: URL) -> String? {
+        let name = Constants.API.sessionCookieName
+
+        if let stored = session.configuration.httpCookieStorage?
+            .cookies(for: url)?
+            .first(where: { $0.name == name })?.value {
+            return stored
+        }
+
+        let headerFields = Dictionary(
+            httpResponse.allHeaderFields.compactMap { key, value -> (String, String)? in
+                guard let key = key as? String, let value = value as? String else { return nil }
+                return (key, value)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
+            .first(where: { $0.name == name })?.value
     }
 
     #if DEBUG

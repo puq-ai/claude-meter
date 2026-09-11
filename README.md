@@ -9,7 +9,7 @@ A macOS menu bar utility to monitor your Anthropic Claude Code usage, token cons
 
 ## Features
 
-- **Real-time Monitoring**: Tracks 5-hour, 7-day, and Opus-specific usage limits
+- **Real-time Monitoring**: Tracks 5-hour, 7-day, and per-model weekly limits reported by the API
 - **Menu Bar Widget**: Shows current utilization at a glance (Icon, Compact, or Detailed modes)
 - **Notifications**: Configurable alerts when approaching limits (75%, 90%, 95%)
 - **Smart Polling**: Adaptive refresh rate based on activity and usage level

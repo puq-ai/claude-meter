@@ -63,6 +63,28 @@ enum ColorTheme {
         }
     }
 
+    /// Returns the colour for a limit, preferring the server's own severity.
+    ///
+    /// Only `normal` has actually been observed in API responses; `warning` and `critical`
+    /// are inferred. The local percentage thresholds therefore stay in place as the
+    /// fallback for `unknown` and for responses that carry no severity at all.
+    /// - Parameters:
+    ///   - severity: Server-reported severity, if any
+    ///   - fallbackUsage: Usage percentage (0-100) used when severity is absent/unknown
+    static func colorForSeverity(_ severity: LimitSeverity?, fallbackUsage: Double) -> Color {
+        switch severity {
+        case .normal:
+            // Trust the server only while it agrees the limit is not yet pressing.
+            return colorForUsage(fallbackUsage)
+        case .warning:
+            return orange
+        case .critical:
+            return red
+        case .unknown, nil:
+            return colorForUsage(fallbackUsage)
+        }
+    }
+
     /// Returns gradient colors for usage visualization
     /// - Parameter usage: Usage percentage (0-100)
     /// - Returns: Array of colors for gradient

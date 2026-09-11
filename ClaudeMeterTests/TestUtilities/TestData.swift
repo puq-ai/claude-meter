@@ -151,6 +151,76 @@ enum TestData {
         return json.data(using: .utf8)!
     }
 
+    /// Trimmed copy of a real `/api/oauth/usage` response captured 2026-09-11, after the
+    /// API moved every limit into the `limits` array. Note that all legacy per-model keys
+    /// come back null and the scoped limit is named by the server, not by a fixed key.
+    static func makeLimitsUsageDataJSON() -> Data {
+        let json = """
+        {
+            "five_hour": { "utilization": 4.0, "resets_at": "2026-09-11T10:00:00Z" },
+            "seven_day": { "utilization": 24.0, "resets_at": "2026-09-16T11:00:00Z" },
+            "seven_day_opus": null,
+            "seven_day_sonnet": null,
+            "seven_day_omelette": null,
+            "limits": [
+                {
+                    "group": "session",
+                    "kind": "session",
+                    "percent": 4,
+                    "resets_at": "2026-09-11T10:00:00Z",
+                    "is_active": false,
+                    "scope": null,
+                    "severity": "normal"
+                },
+                {
+                    "group": "weekly",
+                    "kind": "weekly_all",
+                    "percent": 24,
+                    "resets_at": "2026-09-16T11:00:00Z",
+                    "is_active": true,
+                    "scope": null,
+                    "severity": "normal"
+                },
+                {
+                    "group": "weekly",
+                    "kind": "weekly_scoped",
+                    "percent": 19,
+                    "resets_at": "2026-09-16T10:59:59Z",
+                    "is_active": false,
+                    "scope": { "model": { "display_name": "Fable", "id": null }, "surface": null },
+                    "severity": "normal"
+                }
+            ],
+            "seven_day_breakdown": {
+                "as_of": "2026-09-11T06:34:38Z",
+                "window_started_at": "2026-09-09T11:00:00Z",
+                "rows": [
+                    { "display_name": "Claude Code", "key": "claude_code", "percent": 100 },
+                    { "display_name": "Chats", "key": "chat", "percent": 0 }
+                ]
+            },
+            "spend": {
+                "enabled": false,
+                "percent": 0,
+                "severity": "normal",
+                "can_purchase_credits": false,
+                "can_toggle": false,
+                "used": { "amount_minor": 1234, "currency": "USD", "exponent": 2 }
+            },
+            "extra_usage": {
+                "is_enabled": false,
+                "credits_ever_enabled": true,
+                "user_disabled": true,
+                "spend_limit_reached": false,
+                "monthly_limit": null,
+                "used_credits": null,
+                "utilization": null
+            }
+        }
+        """
+        return json.data(using: .utf8)!
+    }
+
     static func makeErrorJSON(message: String = "Test error") -> Data {
         let json = """
         {

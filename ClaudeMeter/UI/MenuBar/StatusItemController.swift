@@ -55,21 +55,30 @@ class StatusItemController: NSObject {
 
     private func setupSubscriptions() {
         // Update menu bar based on usage and display mode
-        Publishers.CombineLatest(appState.$usageData, appState.$settings)
+        Publishers.CombineLatest3(appState.$usageData, appState.$settings, appState.$authState)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] data, settings in
-                self?.updateMenuBarDisplay(with: data, mode: settings.displayMode)
+            .sink { [weak self] data, settings, authState in
+                self?.updateMenuBarDisplay(with: data, mode: settings.displayMode, authState: authState)
             }
             .store(in: &cancellables)
     }
 
     // MARK: - Display Mode Rendering
 
-    private func updateMenuBarDisplay(with data: UsageData?, mode: DisplayMode) {
+    private func updateMenuBarDisplay(with data: UsageData?, mode: DisplayMode, authState: AuthState) {
         guard let button = statusItem?.button else { return }
 
-        // Use 5-hour usage for menu bar display
-        let fiveHourUsage = data?.fiveHour?.utilization ?? 0
+        // Without data, an auth failure used to render as a green 0% - a broken app that
+        // looks like a healthy one. Say so instead.
+        if data == nil, authState.needsAttention {
+            updateNeedsAttentionMode(button: button, mode: mode)
+            return
+        }
+
+        // Use 5-hour usage for menu bar display. Read through displayWindows so the menu
+        // bar keeps working off the `limits` array once the server stops sending the
+        // top-level `five_hour` key, the way it already did for the per-model windows.
+        let fiveHourUsage = data?.usage(forLimitId: "5h") ?? 0
 
         switch mode {
         case .iconOnly:
@@ -79,6 +88,20 @@ class StatusItemController: NSObject {
         case .detailed:
             updateDetailedMode(button: button, data: data)
         }
+    }
+
+    // MARK: - Needs Attention (no credentials / rejected credentials)
+    private func updateNeedsAttentionMode(button: NSStatusBarButton, mode: DisplayMode) {
+        let symbol = NSImage(
+            systemSymbolName: "exclamationmark.triangle.fill",
+            accessibilityDescription: "ClaudeMeter needs you to sign in"
+        )
+        symbol?.isTemplate = true
+
+        button.image = symbol
+        button.imagePosition = mode == .iconOnly ? .imageOnly : .imageLeading
+        button.title = mode == .iconOnly ? "" : " --"
+        button.toolTip = "ClaudeMeter can't read your usage - click to connect an account"
     }
 
     // MARK: - Icon Only Mode
@@ -105,12 +128,12 @@ class StatusItemController: NSObject {
 
         var parts: [String] = []
 
-        if let fiveHour = data.fiveHour {
-            parts.append("5h: \(Int(fiveHour.utilization))%")
+        if let fiveHour = data.usage(forLimitId: "5h") {
+            parts.append("5h: \(Int(fiveHour))%")
         }
 
-        if let sevenDay = data.sevenDay {
-            parts.append("7d: \(Int(sevenDay.utilization))%")
+        if let sevenDay = data.usage(forLimitId: "7d") {
+            parts.append("7d: \(Int(sevenDay))%")
         }
 
         let title = parts.isEmpty ? "No data" : parts.joined(separator: " | ")
@@ -191,14 +214,10 @@ class StatusItemController: NSObject {
     private func calculateMaxUsage(from data: UsageData?) -> Double {
         guard let data = data else { return 0 }
 
-        let usages: [Double] = [
-            data.fiveHour?.utilization ?? 0,
-            data.sevenDay?.utilization ?? 0,
-            data.sevenDayOpus?.utilization ?? 0,
-            data.sevenDaySonnet?.utilization ?? 0
-        ]
-
-        return usages.max() ?? 0
+        // Every limit counts, scoped ones included. Deliberately NOT filtered by
+        // settings.showScopedLimits: hiding a card is a display preference and must not
+        // suppress a real limit warning in the menu bar.
+        return data.displayWindows.map(\.usage).max() ?? 0
     }
 
     // MARK: - Popover Toggle

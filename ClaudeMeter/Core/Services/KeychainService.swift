@@ -43,15 +43,16 @@ struct ClaudeOAuthData: Codable {
 }
 
 class KeychainService: KeychainServiceProtocol {
-    // Claude Code uses this service name for storing OAuth credentials
+    /// The Claude Code CLI's Keychain service. Only ever READ from - `save`/`delete` take an
+    /// explicit service and default to the app's own, so nothing here can clobber the CLI.
     private let serviceName = Constants.Keychain.serviceName
 
     // MARK: - Generic Password Methods
 
-    func save(data: Data, account: String) throws {
+    func save(data: Data, account: String, service: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: data
         ]
@@ -62,7 +63,7 @@ class KeychainService: KeychainServiceProtocol {
             // Item exists, update it
             let updateQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: serviceName,
+                kSecAttrService as String: service,
                 kSecAttrAccount as String: account
             ]
             let attributes: [String: Any] = [
@@ -78,10 +79,10 @@ class KeychainService: KeychainServiceProtocol {
         }
     }
 
-    func read(account: String) throws -> Data {
+    func read(account: String, service: String) throws -> Data {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
@@ -116,10 +117,10 @@ class KeychainService: KeychainServiceProtocol {
         return data
     }
 
-    func delete(account: String) throws {
+    func delete(account: String, service: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
 

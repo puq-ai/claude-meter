@@ -16,6 +16,9 @@ struct ProgressBarView: View {
     let cornerRadius: CGFloat
     let animated: Bool
     var accessibilityLabelText: String?
+    /// Overrides the usage-threshold colouring. Needed wherever the value is a share
+    /// rather than a utilization — a 100% share must not render as "critical" red.
+    var tint: Color?
 
     @State private var displayedProgress: Double = 0
 
@@ -25,7 +28,8 @@ struct ProgressBarView: View {
         height: CGFloat = 8,
         cornerRadius: CGFloat = 4,
         animated: Bool = true,
-        accessibilityLabel: String? = nil
+        accessibilityLabel: String? = nil,
+        tint: Color? = nil
     ) {
         self.progress = progress
         self.showPercentage = showPercentage
@@ -33,10 +37,11 @@ struct ProgressBarView: View {
         self.cornerRadius = cornerRadius
         self.animated = animated
         self.accessibilityLabelText = accessibilityLabel
+        self.tint = tint
     }
 
     private var color: Color {
-        ColorTheme.colorForUsage(progress * 100)
+        tint ?? ColorTheme.colorForUsage(progress * 100)
     }
 
     private var usageLevel: String {
