@@ -83,12 +83,14 @@ final class WebLoginController: NSObject {
         webView.uiDelegate = self
         self.webView = webView
 
-        let status = NSTextField(labelWithString: "")
+        // Said up front rather than after the user hits the wall: an embedded window cannot
+        // use a platform authenticator, so a passkey here only ever offers the cross-device
+        // path and then fails. Nothing in this app can change that.
+        let status = NSTextField(labelWithString: "Signing in with a passkey? Embedded windows can't use them - close this and use \u{201C}Enter a session key manually\u{201D} in Settings instead.")
         status.font = .preferredFont(forTextStyle: .caption1)
-        status.textColor = .systemOrange
+        status.textColor = .secondaryLabelColor
         status.lineBreakMode = .byWordWrapping
         status.maximumNumberOfLines = 3
-        status.isHidden = true
         self.statusLabel = status
 
         let stack = NSStackView(views: [webView, status])
@@ -165,6 +167,7 @@ final class WebLoginController: NSObject {
 
     private func showStatus(_ message: String) {
         statusLabel?.stringValue = message
+        statusLabel?.textColor = .systemOrange
         statusLabel?.isHidden = false
     }
 
