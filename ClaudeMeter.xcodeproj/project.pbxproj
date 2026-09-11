@@ -77,6 +77,7 @@
 		TST002 /* MockURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC002; };
 		TST003 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC003; };
 		TST004 /* UsageManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC004; };
+		TST010 /* UsageManagerFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC010; };
 
 		/* Test Mocks */
 		TST005 /* MockAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST_SRC005; };
@@ -187,6 +188,7 @@
 		TST_SRC002 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
 		TST_SRC003 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
 		TST_SRC004 /* UsageManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManagerTests.swift; sourceTree = "<group>"; };
+		TST_SRC010 /* UsageManagerFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageManagerFallbackTests.swift; sourceTree = "<group>"; };
 
 		/* Test Mocks */
 		TST_SRC005 /* MockAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAPIService.swift; sourceTree = "<group>"; };
@@ -444,6 +446,7 @@
 			isa = PBXGroup;
 			children = (
 				TST_SRC004 /* UsageManagerTests.swift */,
+				TST_SRC010 /* UsageManagerFallbackTests.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -639,6 +642,7 @@
 				TST002 /* MockURLProtocol.swift in Sources */,
 				TST003 /* KeychainServiceTests.swift in Sources */,
 				TST004 /* UsageManagerTests.swift in Sources */,
+				TST010 /* UsageManagerFallbackTests.swift in Sources */,
 				TST005 /* MockAPIService.swift in Sources */,
 				TST006 /* MockKeychainService.swift in Sources */,
 				TST007 /* MockCacheManager.swift in Sources */,

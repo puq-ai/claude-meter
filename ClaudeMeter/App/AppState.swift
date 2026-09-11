@@ -141,14 +141,23 @@ class AppState: ObservableObject {
         guard pollingManager.beginFetch() else { return }
         defer { pollingManager.endFetch() }
         await usageManager.fetchUsage()
+
         if usageManager.error == nil {
             lastUpdateTime = Date()
-            pollingManager.recordSuccess()
-        } else if let appError = usageManager.error as? AppError,
-                  case .rateLimited(let retryAfter) = appError {
+        }
+
+        // Back off on what the PRIMARY API reported, not on what the user ended up seeing.
+        // A successful fallback clears `error`, so keying off that would let a 429 pass
+        // unnoticed and we'd keep spending a rate-limited request on every tick.
+        if case .rateLimited(let retryAfter)? = usageManager.lastPrimaryError {
             pollingManager.recordRateLimitHit(retryAfter: retryAfter)
-        } else {
+        } else if usageManager.error != nil {
             pollingManager.recordFailure()
+        } else {
+            // Data is flowing, whether the primary or the fallback served it. A primary
+            // failure the fallback covered must not trip the circuit breaker, or a
+            // web-only user would be throttled to the 10-minute backoff interval.
+            pollingManager.recordSuccess()
         }
     }
 

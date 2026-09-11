@@ -22,6 +22,15 @@ class MockAPIService: APIServiceProtocol {
     var stubbedError: Error?
     var stubbedTokenValid = true
 
+    // MARK: - Web Fallback (kept separate from the primary stubs so a test can make the
+    // primary fail while the fallback succeeds - the whole point of the fallback)
+    var fetchUsageFromWebCallCount = 0
+    var lastWebSessionKey: String?
+    var lastWebOrganizationId: String?
+    var stubbedWebUsageData: UsageData?
+    var stubbedWebError: Error?
+    var stubbedRefreshedSessionKey: String?
+
     // MARK: - APIServiceProtocol
 
     func fetchUsage(token: String) async throws -> UsageData {
@@ -61,13 +70,19 @@ class MockAPIService: APIServiceProtocol {
     }
 
     func fetchUsageFromWeb(sessionKey: String, organizationId: String) async throws -> (UsageData, String?) {
-        if let error = stubbedError {
+        fetchUsageFromWebCallCount += 1
+        lastWebSessionKey = sessionKey
+        lastWebOrganizationId = organizationId
+
+        if let error = stubbedWebError {
             throw error
         }
-        guard let data = stubbedUsageData else {
+
+        guard let data = stubbedWebUsageData else {
             throw APIError.noData
         }
-        return (data, nil)
+
+        return (data, stubbedRefreshedSessionKey)
     }
 
     // MARK: - Reset
@@ -80,5 +95,11 @@ class MockAPIService: APIServiceProtocol {
         stubbedUsageData = nil
         stubbedError = nil
         stubbedTokenValid = true
+        fetchUsageFromWebCallCount = 0
+        lastWebSessionKey = nil
+        lastWebOrganizationId = nil
+        stubbedWebUsageData = nil
+        stubbedWebError = nil
+        stubbedRefreshedSessionKey = nil
     }
 }
