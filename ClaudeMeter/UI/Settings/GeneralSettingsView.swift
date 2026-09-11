@@ -141,10 +141,11 @@ struct GeneralSettingsView: View {
 
     private func startWebLogin() {
         isSigningIn = true
-        WebLoginController.shared.present { sessionKey, organizations in
+        WebLoginController.shared.present { outcome in
             isSigningIn = false
+            guard case .signedIn(let sessionKey, let organizations) = outcome,
+                  let organization = organizations.preferredForUsage else { return }
             discoveredOrganizations = organizations
-            guard let organization = organizations.preferredForUsage else { return }
             appState.applyWebSession(sessionKey: sessionKey, organization: organization)
         }
     }

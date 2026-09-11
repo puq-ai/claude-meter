@@ -9,6 +9,14 @@
 import AppKit
 import WebKit
 
+/// How an in-app claude.ai sign-in ended. Always delivered exactly once, including when the
+/// user closes the window or the attempt times out, so callers can reliably clear their
+/// "signing in…" state.
+enum WebLoginOutcome {
+    case signedIn(sessionKey: String, organizations: [WebOrganization])
+    case cancelled
+}
+
 /// Signs the user in to claude.ai in an embedded web view and keeps the resulting session
 /// cookie, so the web fallback no longer requires copying a cookie out of browser devtools.
 ///
@@ -30,14 +38,15 @@ final class WebLoginController: NSObject {
     private var window: NSWindow?
     private var webView: WKWebView?
     private var dataStore: WKWebsiteDataStore?
-    private var completion: ((String, [WebOrganization]) -> Void)?
+    private var statusLabel: NSTextField?
+    private var completion: ((WebLoginOutcome) -> Void)?
     private var timeoutTask: Task<Void, Never>?
     private var validationTask: Task<Void, Never>?
 
-    /// Candidates already checked, so a cookie that is set before sign-in completes isn't
-    /// re-validated on every change notification.
+    /// Candidates already checked, so a cookie set before sign-in completes isn't re-validated
+    /// on every change notification.
     private var rejectedKeys: Set<String> = []
-    private var isFinishing = false
+    private var hasDelivered = false
 
     private let apiService: APIServiceProtocol
 
@@ -48,7 +57,7 @@ final class WebLoginController: NSObject {
 
     // MARK: - Presentation
 
-    func present(completion: @escaping (String, [WebOrganization]) -> Void) {
+    func present(completion: @escaping (WebLoginOutcome) -> Void) {
         if window != nil {
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -56,7 +65,7 @@ final class WebLoginController: NSObject {
         }
 
         self.completion = completion
-        self.isFinishing = false
+        self.hasDelivered = false
         self.rejectedKeys = []
 
         let store = WKWebsiteDataStore.nonPersistent()
@@ -65,22 +74,37 @@ final class WebLoginController: NSObject {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = store
 
-        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 520, height: 680), configuration: configuration)
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         // A browser User-Agent: the CLI's is exactly what a login page's bot detection rejects.
         webView.customUserAgent = Constants.API.webLoginUserAgent
         webView.navigationDelegate = self
         self.webView = webView
 
+        let status = NSTextField(labelWithString: "")
+        status.font = .preferredFont(forTextStyle: .caption1)
+        status.textColor = .systemOrange
+        status.lineBreakMode = .byWordWrapping
+        status.maximumNumberOfLines = 3
+        status.isHidden = true
+        self.statusLabel = status
+
+        let stack = NSStackView(views: [webView, status])
+        stack.orientation = .vertical
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 12, right: 12)
+        stack.setHuggingPriority(.defaultLow, for: .vertical)
+        status.setContentHuggingPriority(.defaultHigh, for: .vertical)
+
         store.httpCookieStore.add(self)
 
         let window = NSWindow(
-            contentRect: webView.frame,
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 700),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Sign in to claude.ai"
-        window.contentView = webView
+        window.contentView = stack
         window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -96,11 +120,27 @@ final class WebLoginController: NSObject {
         timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.timeout * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            self?.dismiss()
+            self?.finish(.cancelled)
         }
     }
 
-    func dismiss() {
+    func cancel() {
+        finish(.cancelled)
+    }
+
+    /// Delivers the outcome exactly once and tears the window down. Every exit path goes
+    /// through here: leaving a caller's "signing in…" state stuck on is worse than any of the
+    /// failures it reports.
+    private func finish(_ outcome: WebLoginOutcome) {
+        guard !hasDelivered else { return }
+        hasDelivered = true
+
+        let completion = self.completion
+        teardown()
+        completion?(outcome)
+    }
+
+    private func teardown() {
         timeoutTask?.cancel()
         timeoutTask = nil
         validationTask?.cancel()
@@ -111,6 +151,7 @@ final class WebLoginController: NSObject {
         webView = nil
         // Dropping the non-persistent store discards the browser session with it.
         dataStore = nil
+        statusLabel = nil
 
         window?.delegate = nil
         window?.close()
@@ -118,10 +159,15 @@ final class WebLoginController: NSObject {
         completion = nil
     }
 
+    private func showStatus(_ message: String) {
+        statusLabel?.stringValue = message
+        statusLabel?.isHidden = false
+    }
+
     // MARK: - Cookie capture
 
     private func captureSessionKeyIfReady() {
-        guard !isFinishing, validationTask == nil, let store = dataStore?.httpCookieStore else { return }
+        guard !hasDelivered, validationTask == nil, let store = dataStore?.httpCookieStore else { return }
 
         store.getAllCookies { [weak self] cookies in
             guard let self else { return }
@@ -137,6 +183,9 @@ final class WebLoginController: NSObject {
     /// claude.ai can hand out a `sessionKey` before sign-in actually completes, so a cookie on
     /// its own is not proof of anything. Ask the organizations endpoint: it both proves the
     /// session works and yields the organization id the usage endpoint needs.
+    ///
+    /// The inner guard matters: `getAllCookies` is async, so two rapid change notifications can
+    /// both reach this method before either sets `validationTask`.
     private func validate(_ sessionKey: String) {
         guard validationTask == nil else { return }
 
@@ -146,20 +195,28 @@ final class WebLoginController: NSObject {
 
             do {
                 let organizations = try await self.apiService.fetchOrganizations(sessionKey: sessionKey)
+                guard !Task.isCancelled, !self.hasDelivered else { return }
+
                 guard !organizations.isEmpty else {
+                    // A working session that reports no organizations is not something waiting
+                    // longer will fix.
                     self.rejectedKeys.insert(sessionKey)
+                    self.showStatus("Signed in, but this account has no organizations ClaudeMeter can read usage for.")
                     return
                 }
-                guard !Task.isCancelled, !self.isFinishing else { return }
 
-                self.isFinishing = true
-                let completion = self.completion
-                self.dismiss()
-                completion?(sessionKey, organizations)
-            } catch {
-                // Not signed in yet (or the session isn't usable). Wait for the next cookie.
+                self.finish(.signedIn(sessionKey: sessionKey, organizations: organizations))
+            } catch APIError.unauthorized {
+                // Expected until sign-in completes: the cookie exists but isn't authenticated
+                // yet. Stay quiet and wait for the next one.
                 self.rejectedKeys.insert(sessionKey)
-                print("WebLoginController: session key not usable yet - \(error)")
+            } catch {
+                // Anything else means the endpoint isn't answering the way we expect, and
+                // retrying won't help. Say so rather than leaving the window spinning until
+                // the timeout.
+                self.rejectedKeys.insert(sessionKey)
+                self.showStatus("Couldn't confirm the session: \(error.localizedDescription). You can close this and enter the organization ID manually under Settings › Advanced.")
+                print("WebLoginController: organization lookup failed - \(error)")
             }
         }
     }
@@ -187,8 +244,7 @@ extension WebLoginController: WKNavigationDelegate {
 
 extension WebLoginController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        // The user closed the window without signing in; leave state untouched.
-        guard !isFinishing else { return }
-        dismiss()
+        // Closed without signing in; leave stored credentials untouched but still report back.
+        finish(.cancelled)
     }
 }

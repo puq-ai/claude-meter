@@ -163,7 +163,9 @@ class UsageManager: ObservableObject {
         }()
 
         // Either the primary succeeded, or it failed for a reason unrelated to credentials
-        // (rate limit, server error) - the credentials themselves are fine.
+        // (rate limit, server error) - the credentials themselves are fine. This also covers
+        // the skipped-primary path, where `lastPrimaryError` is nil: the window only ever arms
+        // on a 429, which says nothing about whether the credentials are good.
         guard let problem = credentialProblem else { return .cliAuthenticated }
 
         if dataSource == .webFallback { return .webOnly }

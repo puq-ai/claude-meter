@@ -304,8 +304,9 @@ struct PopoverView: View {
 
                 if appState.authState.needsAttention {
                     Button("Reconnect") {
-                        WebLoginController.shared.present { sessionKey, organizations in
-                            guard let organization = organizations.preferredForUsage else { return }
+                        WebLoginController.shared.present { outcome in
+                            guard case .signedIn(let sessionKey, let organizations) = outcome,
+                                  let organization = organizations.preferredForUsage else { return }
                             appState.applyWebSession(sessionKey: sessionKey, organization: organization)
                         }
                     }

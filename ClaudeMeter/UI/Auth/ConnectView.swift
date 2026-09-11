@@ -84,9 +84,10 @@ struct ConnectView: View {
 
     private func startWebLogin() {
         isSigningIn = true
-        WebLoginController.shared.present { sessionKey, organizations in
+        WebLoginController.shared.present { outcome in
             isSigningIn = false
-            guard let organization = organizations.preferredForUsage else { return }
+            guard case .signedIn(let sessionKey, let organizations) = outcome,
+                  let organization = organizations.preferredForUsage else { return }
             appState.applyWebSession(sessionKey: sessionKey, organization: organization)
         }
     }
