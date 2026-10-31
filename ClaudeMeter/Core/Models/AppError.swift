@@ -155,11 +155,35 @@ extension AppError {
         case .rateLimited(let retryAfter):
             return .rateLimited(retryAfter: retryAfter)
         case .networkError(let error):
-            return .unknown(error.localizedDescription)
-        case .maxRetriesExceeded:
+            return .from(transportError: error)
+        case .maxRetriesExceeded(let lastError):
+            // Report what actually kept failing: an offline Mac is not an unreachable server.
+            if let lastAPIError = lastError as? APIError {
+                return .from(lastAPIError)
+            }
             return .serverUnreachable
         case .unknown(let error):
             return .unknown(error.localizedDescription)
+        }
+    }
+
+    /// Convert a URLSession transport failure, keeping the distinctions the UI can act on.
+    static func from(transportError error: Error) -> AppError {
+        if error is CancellationError { return .cancelled }
+        guard let urlError = error as? URLError else {
+            return .unknown(error.localizedDescription)
+        }
+        switch urlError.code {
+        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff:
+            return .networkUnavailable
+        case .timedOut:
+            return .connectionTimeout
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return .serverUnreachable
+        case .cancelled:
+            return .cancelled
+        default:
+            return .unknown(urlError.localizedDescription)
         }
     }
 

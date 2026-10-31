@@ -214,6 +214,8 @@ class UsageManager: ObservableObject {
             return AppError.from(keychainError)
         case let appError as AppError:
             return appError
+        case is URLError, is CancellationError:
+            return AppError.from(transportError: rawError)
         default:
             return .unknown(rawError.localizedDescription)
         }

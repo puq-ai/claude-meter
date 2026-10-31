@@ -273,6 +273,20 @@ final class UsageManagerFallbackTests: XCTestCase {
         XCTAssertTrue(sut.authState.needsAttention)
     }
 
+    // MARK: - Network errors
+
+    func testOffline_IsReportedAsNetworkUnavailable() async {
+        mockKeychainService.stubbedCredentials = TestData.makeCredentials()
+        mockAPIService.stubbedError = APIError.maxRetriesExceeded(
+            lastError: APIError.networkError(URLError(.notConnectedToInternet))
+        )
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.error as? AppError, .networkUnavailable,
+                       "an offline Mac is not an unreachable server")
+    }
+
     // MARK: - Provenance
 
     func testDataSource_ReportsCacheWhenEverythingFails() async {
