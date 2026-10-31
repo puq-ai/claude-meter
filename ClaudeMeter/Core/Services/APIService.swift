@@ -95,6 +95,27 @@ class APIService: APIServiceProtocol {
         }
     }
 
+    /// Decoder for both usage endpoints. The API returns ISO 8601 dates with fractional
+    /// seconds (e.g. "2026-02-19T07:00:00.125129+00:00"), which the built-in `.iso8601`
+    /// strategy does NOT support. Built once: formatters are expensive and thread-safe.
+    static let usageDecoder: JSONDecoder = {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let whole = ISO8601DateFormatter()
+        whole.formatOptions = [.withInternetDateTime]
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            if let date = fractional.date(from: dateString) ?? whole.date(from: dateString) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
+        }
+        return decoder
+    }()
+
     // MARK: - Methods
 
     /// Fetch usage data without retry
@@ -120,27 +141,7 @@ class APIService: APIServiceProtocol {
         switch httpResponse.statusCode {
         case 200:
             do {
-                let decoder = JSONDecoder()
-                // The API returns ISO 8601 dates with fractional seconds
-                // (e.g. "2026-02-19T07:00:00.125129+00:00") which the built-in
-                // .iso8601 strategy does NOT support. Use a custom formatter.
-                let isoFormatter = ISO8601DateFormatter()
-                isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                decoder.dateDecodingStrategy = .custom { decoder in
-                    let container = try decoder.singleValueContainer()
-                    let dateString = try container.decode(String.self)
-                    if let date = isoFormatter.date(from: dateString) {
-                        return date
-                    }
-                    // Fallback: try without fractional seconds
-                    let fallbackFormatter = ISO8601DateFormatter()
-                    fallbackFormatter.formatOptions = [.withInternetDateTime]
-                    if let date = fallbackFormatter.date(from: dateString) {
-                        return date
-                    }
-                    throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
-                }
-                return try decoder.decode(UsageData.self, from: data)
+                return try Self.usageDecoder.decode(UsageData.self, from: data)
             } catch {
                 print("APIService: Decoding error: \(error)")
                 throw APIError.decodingError
@@ -232,23 +233,7 @@ class APIService: APIServiceProtocol {
         switch httpResponse.statusCode {
         case 200:
             do {
-                let decoder = JSONDecoder()
-                let isoFormatter = ISO8601DateFormatter()
-                isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                decoder.dateDecodingStrategy = .custom { decoder in
-                    let container = try decoder.singleValueContainer()
-                    let dateString = try container.decode(String.self)
-                    if let date = isoFormatter.date(from: dateString) {
-                        return date
-                    }
-                    let fallbackFormatter = ISO8601DateFormatter()
-                    fallbackFormatter.formatOptions = [.withInternetDateTime]
-                    if let date = fallbackFormatter.date(from: dateString) {
-                        return date
-                    }
-                    throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
-                }
-                let decoded = try decoder.decode(UsageData.self, from: data)
+                let decoded = try Self.usageDecoder.decode(UsageData.self, from: data)
 
                 // Report the key only when the server actually rotated it, so a routine
                 // poll doesn't churn the stored credential.
