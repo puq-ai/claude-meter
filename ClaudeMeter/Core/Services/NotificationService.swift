@@ -48,22 +48,29 @@ enum NotificationType: String, CaseIterable {
 class NotificationService: NotificationServiceProtocol {
     static let shared = NotificationService()
 
-    // Throttling: track last notification time per type
-    private var lastNotificationTimes: [NotificationType: Date] = [:]
     private var notifiedThresholds: Set<String> = []  // "5h_75", "7d_90", etc.
-
-    // Throttle interval: 1 hour between same notification types
-    private let throttleInterval: TimeInterval = Constants.Notification.throttleInterval
 
     // Hysteresis buffer: usage must drop this much below threshold before re-notifying
     private let hysteresisBuffer: Double = Constants.Notification.hysteresisBuffer
 
-    // Keys for persisting throttle times
-    private let throttleTimesKey = Constants.Notification.throttleTimesKey
+    private let defaults: UserDefaults
+    private let deliver: (UNNotificationRequest) -> Void
 
-    private init() {
+    private convenience init() {
+        self.init(defaults: .standard) { request in
+            UNUserNotificationCenter.current().add(request) { error in
+                if let error = error {
+                    print("NotificationService: Failed to schedule notification - \(error)")
+                }
+            }
+        }
+    }
+
+    /// Tests supply isolated defaults and capture requests instead of posting them.
+    init(defaults: UserDefaults, deliver: @escaping (UNNotificationRequest) -> Void) {
+        self.defaults = defaults
+        self.deliver = deliver
         loadNotificationState()
-        loadThrottleTimes()
     }
 
     // MARK: - Permission
@@ -93,12 +100,7 @@ class NotificationService: NotificationServiceProtocol {
         content.sound = .default
 
         let id = identifier ?? UUID().uuidString
-        let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("NotificationService: Failed to schedule notification - \(error)")
-            }
-        }
+        deliver(UNNotificationRequest(identifier: id, content: content, trigger: nil))
     }
 
     // MARK: - Usage-Based Notifications
@@ -133,7 +135,6 @@ class NotificationService: NotificationServiceProtocol {
 
             let crossed = checkThresholdsAggregated(
                 currentUsage: window.usage,
-                previousUsage: previous,
                 windowName: window.id,
                 windowTitle: window.notificationName,
                 thresholds: thresholds,
@@ -151,13 +152,20 @@ class NotificationService: NotificationServiceProtocol {
         checkForReset(current: usage, previous: previousUsage)
     }
 
-    /// Check thresholds and return crossed ones for aggregation
+    /// Check thresholds and return crossed ones for aggregation.
+    ///
+    /// Level-based against the persisted `notifiedThresholds`, not edge-based against the
+    /// previous poll: a threshold is due whenever usage is at or above it and it has not been
+    /// notified since usage last fell below it. Edge detection lost alerts for good - a
+    /// crossing that couldn't be delivered on the poll it happened (the old per-type hourly
+    /// throttle, e.g. a scoped limit reaching 75% within an hour of the 5-hour window) was
+    /// never "crossed" again, because the next poll's previous value was already above it.
+    /// The per-key state plus hysteresis is what keeps this from repeating.
     /// - Parameter seedOnly: Record the thresholds this limit is already above without
     ///   notifying. Used when a limit shows up under an id we have never seen, so the
     ///   user is not told again about a threshold they already crossed.
     private func checkThresholdsAggregated(
         currentUsage: Double,
-        previousUsage: Double?,
         windowName: String,
         windowTitle: String,
         thresholds: [Int],
@@ -169,24 +177,18 @@ class NotificationService: NotificationServiceProtocol {
 
         for threshold in sortedThresholds {
             let key = "\(windowName)_\(threshold)"
-            let previousValue = previousUsage ?? 0
 
             if seedOnly {
                 // Adopt the current position silently; the next genuine crossing notifies.
                 if currentUsage >= Double(threshold) {
                     stateChanged = notifiedThresholds.insert(key).inserted || stateChanged
                 }
-            } else if currentUsage >= Double(threshold) && previousValue < Double(threshold) {
-                // Just crossed this threshold upward
-                // Only notify if not already notified for this threshold
-                if !notifiedThresholds.contains(key) {
-                    if let notificationType = NotificationType.forThreshold(threshold),
-                       shouldSendNotification(type: notificationType) {
-                        crossed.append((windowTitle: windowTitle, threshold: threshold, usage: currentUsage))
-                        notifiedThresholds.insert(key)
-                        stateChanged = true
-                    }
-                }
+            } else if currentUsage >= Double(threshold),
+                      !notifiedThresholds.contains(key),
+                      NotificationType.forThreshold(threshold) != nil {
+                crossed.append((windowTitle: windowTitle, threshold: threshold, usage: currentUsage))
+                notifiedThresholds.insert(key)
+                stateChanged = true
             }
 
             // Reset notification flag if usage dropped below threshold (with hysteresis)
@@ -199,7 +201,10 @@ class NotificationService: NotificationServiceProtocol {
             saveNotificationState()
         }
 
-        return crossed
+        // A jump past several thresholds in one poll (a cold start at 96%, or a big job)
+        // marks them all notified, but reports the window once, at its highest threshold.
+        // Returning every crossing printed the same "Current Session: 96%" three times.
+        return crossed.max { $0.threshold < $1.threshold }.map { [$0] } ?? []
     }
 
     /// Send a single aggregated notification for all crossed thresholds
@@ -217,25 +222,25 @@ class NotificationService: NotificationServiceProtocol {
             body: body,
             identifier: "aggregated_\(maxThreshold)"
         )
-        recordNotification(type: notificationType)
+        // No per-type throttle: threshold alerts are deduplicated by the per-window
+        // `notifiedThresholds` state, and throttling by type lost them.
     }
 
     private func checkForReset(current: UsageData, previous: UsageData?) {
         guard let previous = previous else { return }
 
         var resetWindows: [String] = []
+        let now = Date()
 
-        // Gradual reset detection (>40% drop to a low value), driven by displayWindows so
-        // every limit — including newly introduced scoped ones — is covered.
+        // Driven by displayWindows so every limit — including newly introduced scoped
+        // ones — is covered.
         let previousWindows = previous.displayWindows
         for window in current.displayWindows {
-            guard let previousWindow = previousWindows.first(where: { $0.id == window.id }) else { continue }
-            let drop = previousWindow.usage - window.usage
-            if drop > Constants.Notification.resetDropThreshold && window.usage < Constants.Notification.resetLowThreshold {
-                resetWindows.append(window.notificationName)
-                // Clear this window's persisted threshold notifications.
-                notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("\(window.id)_") }
-            }
+            guard let previousWindow = previousWindows.first(where: { $0.id == window.id }),
+                  Self.didReset(window, from: previousWindow, now: now) else { continue }
+            resetWindows.append(window.notificationName)
+            // Clear this window's persisted threshold notifications.
+            notifiedThresholds = notifiedThresholds.filter { !$0.hasPrefix("\(window.id)_") }
         }
 
         // Note: keys for windows the server has stopped sending (sonnet_*, opus_*, design_*)
@@ -248,9 +253,29 @@ class NotificationService: NotificationServiceProtocol {
         }
     }
 
-    private func sendResetNotification(windowTitles: [String]) {
-        guard shouldSendNotification(type: .limitReset), !windowTitles.isEmpty else { return }
+    /// Whether `window` is a fresh period of `previous` worth announcing.
+    ///
+    /// The server's `resets_at` is authoritative: once the time we last saw has passed and the
+    /// limit reports a later one (or none, before the next period starts), it rolled over —
+    /// however much has been used since. Inferring a reset from a drop to under 20% missed
+    /// any reset followed by real work before the next poll. Rollover detection is edge-based
+    /// against the previous poll, so it fires once per period without a throttle; the old
+    /// hourly per-type throttle swallowed a second limit resetting within the hour.
+    private static func didReset(_ window: DisplayLimit, from previous: DisplayLimit, now: Date) -> Bool {
+        if let previousReset = previous.resetsAt, previousReset <= now {
+            let rolledOver = window.resetsAt.map {
+                $0.timeIntervalSince(previousReset) > Constants.Notification.resetRolloverTolerance
+            } ?? true
+            if rolledOver {
+                return previous.usage >= Constants.Notification.resetMinimumPriorUsage
+            }
+        }
+        // Limits without `resets_at`, or reset early by the server: infer from a large drop.
+        return previous.usage - window.usage > Constants.Notification.resetDropThreshold
+            && window.usage < Constants.Notification.resetLowThreshold
+    }
 
+    private func sendResetNotification(windowTitles: [String]) {
         let windowList = windowTitles.joined(separator: ", ")
         let body = windowTitles.count == 1
             ? "Your \(windowList) usage has been reset. You're good to go!"
@@ -261,21 +286,6 @@ class NotificationService: NotificationServiceProtocol {
             body: body,
             identifier: "reset_aggregated"
         )
-        recordNotification(type: .limitReset)
-    }
-
-    // MARK: - Throttling
-
-    private func shouldSendNotification(type: NotificationType) -> Bool {
-        guard let lastTime = lastNotificationTimes[type] else {
-            return true
-        }
-        return Date().timeIntervalSince(lastTime) >= throttleInterval
-    }
-
-    private func recordNotification(type: NotificationType) {
-        lastNotificationTimes[type] = Date()
-        saveThrottleTimes()
     }
 
     // MARK: - State Persistence
@@ -284,32 +294,12 @@ class NotificationService: NotificationServiceProtocol {
 
     private func saveNotificationState() {
         let state = Array(notifiedThresholds)
-        UserDefaults.standard.set(state, forKey: notificationStateKey)
+        defaults.set(state, forKey: notificationStateKey)
     }
 
     private func loadNotificationState() {
-        if let state = UserDefaults.standard.array(forKey: notificationStateKey) as? [String] {
+        if let state = defaults.array(forKey: notificationStateKey) as? [String] {
             notifiedThresholds = Set(state)
-        }
-    }
-
-    private func saveThrottleTimes() {
-        // Convert NotificationType -> Date dictionary to String -> TimeInterval for storage
-        var dict: [String: TimeInterval] = [:]
-        for (type, date) in lastNotificationTimes {
-            dict[type.rawValue] = date.timeIntervalSince1970
-        }
-        UserDefaults.standard.set(dict, forKey: throttleTimesKey)
-    }
-
-    private func loadThrottleTimes() {
-        guard let dict = UserDefaults.standard.dictionary(forKey: throttleTimesKey) as? [String: TimeInterval] else {
-            return
-        }
-        for (rawValue, timestamp) in dict {
-            if let type = NotificationType(rawValue: rawValue) {
-                lastNotificationTimes[type] = Date(timeIntervalSince1970: timestamp)
-            }
         }
     }
 }

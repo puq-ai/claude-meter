@@ -93,14 +93,17 @@ enum Constants {
 
     // MARK: - Notification Configuration
     enum Notification {
-        static let throttleInterval: TimeInterval = 3600  // 1 hour
         static let hysteresisBuffer: Double = 5.0
 
         // UserDefaults keys
-        static let throttleTimesKey = "com.claudemeter.throttleTimes"
         static let notificationStateKey = "com.claudemeter.notificationState"
 
         // Reset detection
+        /// A window that rolls over is only news if a meaningful share of it had been used.
+        static let resetMinimumPriorUsage: Double = 40.0
+        /// `resets_at` carries fractional seconds that shift between polls; a rollover moves it by hours.
+        static let resetRolloverTolerance: TimeInterval = 60
+        /// Fallback for limits without `resets_at`: a large drop to a low value.
         static let resetDropThreshold: Double = 40.0
         static let resetLowThreshold: Double = 20.0
     }
