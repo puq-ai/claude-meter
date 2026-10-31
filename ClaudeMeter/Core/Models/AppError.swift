@@ -75,7 +75,7 @@ enum AppError: Error, LocalizedError, Equatable {
             return "No data received from the server."
 
         case .keychainReadFailed:
-            return "Failed to read from Keychain."
+            return "Couldn't read Claude Code's credentials from the Keychain."
         case .keychainWriteFailed:
             return "Failed to write to Keychain."
         case .keychainItemNotFound:

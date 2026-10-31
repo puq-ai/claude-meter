@@ -273,6 +273,16 @@ final class UsageManagerFallbackTests: XCTestCase {
         XCTAssertTrue(sut.authState.needsAttention)
     }
 
+    /// A Keychain item that exists but can't be parsed is not "never logged in".
+    func testUnreadableCredentials_AreNotReportedAsMissing() async {
+        mockKeychainService.stubbedCredentialsError = KeychainError.invalidItemFormat
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.error as? AppError, .keychainReadFailed)
+        XCTAssertEqual(sut.authState, .failed(.keychainReadFailed))
+    }
+
     // MARK: - Network errors
 
     func testOffline_IsReportedAsNetworkUnavailable() async {

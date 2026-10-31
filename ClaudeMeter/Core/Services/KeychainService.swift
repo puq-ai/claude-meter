@@ -135,14 +135,14 @@ class KeychainService: KeychainServiceProtocol {
         process.arguments = ["find-generic-password", "-s", service, "-w"]
 
         let outputPipe = Pipe()
-        let errorPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = errorPipe
+        // Never read, so it must not be a pipe that could fill up and block the child.
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
         } catch {
-            throw KeychainError.itemNotFound
+            throw KeychainError.unexpectedStatus(errSecNotAvailable)
         }
 
         // Read output before waiting (prevents deadlock on large output)
@@ -150,8 +150,12 @@ class KeychainService: KeychainServiceProtocol {
 
         process.waitUntilExit()
 
-        guard process.terminationStatus == 0 else {
-            throw KeychainError.itemNotFound
+        // `security` exits 44 (errSecItemNotFound) when there is no such item. Anything else -
+        // a locked keychain, denied access - is a read failure, not "never logged in".
+        switch process.terminationStatus {
+        case 0: break
+        case 44: throw KeychainError.itemNotFound
+        default: throw KeychainError.unexpectedStatus(process.terminationStatus)
         }
 
         guard !outputData.isEmpty else {
@@ -170,41 +174,32 @@ class KeychainService: KeychainServiceProtocol {
 
     /// Tries to find credentials stored by Claude Code CLI
     /// Claude Code stores credentials in JSON format with claudeAiOauth wrapper
+    /// - Returns: nil when the CLI has never stored credentials.
+    /// - Throws: `KeychainError` when an item exists but can't be read or parsed - a
+    ///   format change in the CLI must not masquerade as "please log in".
     func getCredentials() async throws -> ClaudeCredentials? {
+        let data: Data
         do {
             // Use shell command to avoid Keychain password prompt
-            let data = try await readCredentialsViaShell()
-
-            // First try to decode as ClaudeKeychainData (wrapped format)
-            if let keychainData = try? JSONDecoder().decode(ClaudeKeychainData.self, from: data) {
-                let oauth = keychainData.claudeAiOauth
-                return ClaudeCredentials(
-                    accessToken: oauth.accessToken,
-                    refreshToken: oauth.refreshToken,
-                    expiresAt: Date(timeIntervalSince1970: oauth.expiresAt / 1000), // ms to seconds
-                    subscriptionType: oauth.subscriptionType ?? Constants.Credentials.defaultSubscriptionType
-                )
-            }
-
-            // Fallback: try to decode as direct ClaudeOAuthData
-            if let oauthData = try? JSONDecoder().decode(ClaudeOAuthData.self, from: data) {
-                return ClaudeCredentials(
-                    accessToken: oauthData.accessToken,
-                    refreshToken: oauthData.refreshToken,
-                    expiresAt: Date(timeIntervalSince1970: oauthData.expiresAt / 1000), // ms to seconds
-                    subscriptionType: oauthData.subscriptionType ?? Constants.Credentials.defaultSubscriptionType
-                )
-            }
-
-            // Final fallback: try direct ClaudeCredentials decode
-            let credentials = try JSONDecoder().decode(ClaudeCredentials.self, from: data)
-            return credentials
-
+            data = try await readCredentialsViaShell()
         } catch KeychainError.itemNotFound {
             return nil
+        }
+
+        let decoder = JSONDecoder()
+        // Wrapped format: { "claudeAiOauth": { ... } }
+        if let keychainData = try? decoder.decode(ClaudeKeychainData.self, from: data) {
+            return ClaudeCredentials(oauth: keychainData.claudeAiOauth)
+        }
+        // Bare OAuth object
+        if let oauthData = try? decoder.decode(ClaudeOAuthData.self, from: data) {
+            return ClaudeCredentials(oauth: oauthData)
+        }
+        do {
+            return try decoder.decode(ClaudeCredentials.self, from: data)
         } catch {
-            print("KeychainService: Error reading credentials - \(error)")
-            return nil
+            print("KeychainService: Unrecognised credential format - \(error)")
+            throw KeychainError.invalidItemFormat
         }
     }
 
@@ -216,5 +211,16 @@ class KeychainService: KeychainServiceProtocol {
         } catch {
             return false
         }
+    }
+}
+
+private extension ClaudeCredentials {
+    init(oauth: ClaudeOAuthData) {
+        self.init(
+            accessToken: oauth.accessToken,
+            refreshToken: oauth.refreshToken,
+            expiresAt: Date(timeIntervalSince1970: oauth.expiresAt / 1000), // ms to seconds
+            subscriptionType: oauth.subscriptionType ?? Constants.Credentials.defaultSubscriptionType
+        )
     }
 }
