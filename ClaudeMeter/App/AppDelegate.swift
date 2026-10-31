@@ -13,7 +13,6 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItemController: StatusItemController?
     private(set) var appState: AppState?
-    private var fileWatcher: FileWatcherService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize AppState
@@ -26,16 +25,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup status item controller
         statusItemController = StatusItemController(appState: state)
 
-        // Setup file watcher for credential changes
-        setupFileWatcher()
-
         // Register for app lifecycle notifications
         registerForLifecycleNotifications()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         // Cleanup
-        fileWatcher?.stopWatching()
         appState?.pollingManager.stopNetworkMonitor()
         appState?.pollingManager.stop()
     }
@@ -48,18 +43,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.regular)
         } else {
             NSApp.setActivationPolicy(.accessory)
-        }
-    }
-
-    // MARK: - File Watcher
-
-    private func setupFileWatcher() {
-        fileWatcher = FileWatcherService()
-        fileWatcher?.startWatching { [weak self] in
-            // Credential file changed, refresh data
-            Task {
-                await self?.appState?.refresh()
-            }
         }
     }
 

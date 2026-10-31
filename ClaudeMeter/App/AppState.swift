@@ -121,7 +121,7 @@ class AppState: ObservableObject {
     // MARK: - Authentication
 
     /// Whether Claude Code CLI credentials are present right now. Read live rather than
-    /// cached: the CLI writes them to the Keychain, which the file watcher cannot see.
+    /// cached: the CLI writes them to the Keychain, which nothing can observe for changes.
     var hasCLICredentials: Bool {
         usageManager.hasCredentials
     }

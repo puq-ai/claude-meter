@@ -106,9 +106,9 @@ struct ConnectView: View {
         }
     }
 
-    /// The CLI writes its credentials to the Keychain, which the file watcher (it watches
-    /// `~/.claude`) cannot see. Poll while this screen is up so signing in elsewhere is
-    /// noticed without the user having to come back and press refresh.
+    /// The CLI writes its credentials to the Keychain, which nothing can observe for changes.
+    /// Poll while this screen is up so signing in elsewhere is noticed without the user
+    /// having to come back and press refresh.
     private func startWatchingForCredentials() {
         pollTask?.cancel()
         pollTask = Task {

@@ -117,20 +117,6 @@ enum Constants {
         static let webSessionAccount = "claude-ai-session"
     }
 
-    // MARK: - FileWatcher Configuration
-    enum FileWatcher {
-        static let debounceInterval: TimeInterval = 1.0
-        static let fsEventsLatency: CFTimeInterval = 0.5
-
-        static let configPaths: [String] = [
-            "~/.config/claude/",
-            "~/.claude/"
-        ]
-
-        static let relevantExtensions = ["json", ""]
-        static let relevantFiles = ["credentials", "settings", "config"]
-    }
-
     // MARK: - App Settings
     enum Settings {
         static let userDefaultsKey = "com.claudemeter.settings"
