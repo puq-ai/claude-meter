@@ -22,11 +22,19 @@ class AppState: ObservableObject {
 
 
 
-    // Previous usage for notification comparison
+    // Previous usage for notification comparison. Only ever holds a real response: see
+    // `setupBindings` for why a nil in between must not overwrite it.
     private var previousUsageData: UsageData?
 
     // Wake recovery
     private var wakeRetryTask: Task<Void, Never>?
+
+    // Refresh scheduled for just after the next limit reset
+    private var resetRefreshTask: Task<Void, Never>?
+
+    /// An explicit refresh arrived while a fetch was in flight. That fetch may predate what
+    /// prompted it (new credentials, a sign-in), so one more runs as soon as it finishes.
+    private var refreshQueued = false
 
     // UI State
     @Published var isPopoverShown: Bool = false
@@ -34,8 +42,9 @@ class AppState: ObservableObject {
     // Settings - Single source of truth with UserDefaults
     @Published var settings: AppSettings {
         didSet {
+            guard settings != oldValue else { return }
             saveSettings()
-            applySettings()
+            applySettings(changedFrom: oldValue)
         }
     }
 
@@ -52,7 +61,7 @@ class AppState: ObservableObject {
         apiService: APIServiceProtocol = APIService()
     ) {
         // PHASE 1: Sync, fast initialization
-        self.usageManager = UsageManager()
+        self.usageManager = UsageManager(apiService: apiService, keychainService: keychainService)
         self.pollingManager = PollingManager()
         self.keychainService = keychainService
         self.apiService = apiService
@@ -62,7 +71,14 @@ class AppState: ObservableObject {
 
         migrateWebSessionKeyIfNeeded()
         setupBindings()
-        applySettings()
+        applySettings(changedFrom: nil)
+
+        // The web session key lives in the Keychain, not in settings: read it once here.
+        // Sign-in, sign-out and server-side rotation update it directly from then on.
+        usageManager.webSessionKey = keychainService.readWebSessionKey() ?? ""
+        usageManager.onSessionKeyRefreshed = { [weak self] newKey in
+            try? self?.keychainService.saveWebSessionKey(newKey)
+        }
 
         // Setup network monitor for wake recovery
         pollingManager.startNetworkMonitor { [weak self] in
@@ -86,36 +102,37 @@ class AppState: ObservableObject {
         }
     }
 
+    /// Synchronous on purpose: everything here is main-actor already, and a `receive(on:)`
+    /// hop left AppState one step behind UsageManager, so code reading AppState right after
+    /// a fetch saw the previous values.
     private func setupBindings() {
         usageManager.$usageData
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] newData in
-                self?.previousUsageData = self?.usageData
-                self?.usageData = newData
-
-                // Check notifications
-                if let data = newData {
-                    self?.checkNotifications(data)
-                    self?.updatePollingInterval(data)
+                guard let self = self else { return }
+                // Keep the last real response as the comparison baseline across a nil.
+                // Stale-data invalidation after sleep publishes nil; letting that become
+                // the baseline hid every limit reset that happened while the Mac slept.
+                if let current = self.usageData {
+                    self.previousUsageData = current
                 }
+                self.usageData = newData
+
+                guard let data = newData else { return }
+                self.scheduleRefreshAfterNextReset(data)
+
+                // Cached numbers can be up to a day old: alerting or retuning the poll rate
+                // on them would report a state the user may no longer be in. UsageManager
+                // sets `dataSource` before `usageData`, so this read is current.
+                guard self.usageManager.dataSource != .cache else { return }
+                self.checkNotifications(data)
+                self.updatePollingInterval(data)
             }
             .store(in: &cancellables)
 
-        usageManager.$isLoading
-            .receive(on: DispatchQueue.main)
-            .assign(to: &$isLoading)
-
-        usageManager.$error
-            .receive(on: DispatchQueue.main)
-            .assign(to: &$error)
-
-        usageManager.$authState
-            .receive(on: DispatchQueue.main)
-            .assign(to: &$authState)
-
-        usageManager.$dataSource
-            .receive(on: DispatchQueue.main)
-            .assign(to: &$dataSource)
+        usageManager.$isLoading.assign(to: &$isLoading)
+        usageManager.$error.assign(to: &$error)
+        usageManager.$authState.assign(to: &$authState)
+        usageManager.$dataSource.assign(to: &$dataSource)
     }
 
     // MARK: - Authentication
@@ -133,6 +150,7 @@ class AppState: ObservableObject {
     /// Store a claude.ai session key obtained from the in-app login and refresh immediately.
     func applyWebSession(sessionKey: String, organization: WebOrganization) {
         try? keychainService.saveWebSessionKey(sessionKey)
+        usageManager.webSessionKey = sessionKey
         var updated = settings
         updated.webOrganizationId = organization.id
         updated.webOrganizationName = organization.name
@@ -180,6 +198,7 @@ class AppState: ObservableObject {
     /// Forget the claude.ai session.
     func signOutOfWebSession() {
         try? keychainService.deleteWebSessionKey()
+        usageManager.webSessionKey = ""
         var updated = settings
         updated.webOrganizationId = ""
         updated.webOrganizationName = ""
@@ -187,10 +206,6 @@ class AppState: ObservableObject {
     }
 
     // MARK: - Settings Management
-
-    private func loadSettings() {
-        settings = AppSettings.load()
-    }
 
     private func saveSettings() {
         settings.save()
@@ -204,63 +219,89 @@ class AppState: ObservableObject {
         do {
             try keychainService.saveWebSessionKey(legacy)
             settings.legacyWebSessionKey = nil
+            // Property observers don't run during init, so persist explicitly - otherwise
+            // the plaintext copy stays on disk until some unrelated setting changes.
+            saveSettings()
             print("AppState: migrated web session key from UserDefaults into the Keychain")
         } catch {
             print("AppState: web session key migration failed - \(error)")
         }
     }
 
-    private func applySettings() {
-        // Apply refresh interval to polling manager
-        pollingManager.setDefaultInterval(TimeInterval(settings.refreshInterval))
-
-        // Apply web API fallback credentials. The key comes from the Keychain; only the
-        // non-secret organization id lives in settings.
-        usageManager.webSessionKey = keychainService.readWebSessionKey() ?? ""
-        usageManager.webOrganizationId = settings.webOrganizationId
-        usageManager.onSessionKeyRefreshed = { [weak self] newKey in
-            try? self?.keychainService.saveWebSessionKey(newKey)
+    /// Push settings into the managers, touching only what changed. Settings are edited
+    /// field by field (the organization id is a text field), and re-applying everything on
+    /// every keystroke reset the polling timer and toggled the activation policy each time.
+    /// `previous == nil` applies everything, for launch.
+    private func applySettings(changedFrom previous: AppSettings?) {
+        if previous?.refreshInterval != settings.refreshInterval {
+            pollingManager.setDefaultInterval(TimeInterval(settings.refreshInterval))
         }
 
-        // Apply dock visibility
-        if settings.showInDock {
-            NSApp.setActivationPolicy(.regular)
-        } else {
-            NSApp.setActivationPolicy(.accessory)
+        // Only the non-secret organization id lives in settings; the key is in the Keychain.
+        if previous?.webOrganizationId != settings.webOrganizationId {
+            usageManager.webOrganizationId = settings.webOrganizationId
+        }
+
+        if previous?.showInDock != settings.showInDock {
+            NSApp.setActivationPolicy(settings.showInDock ? .regular : .accessory)
         }
     }
 
     // MARK: - Data Refresh
 
+    /// An explicit refresh: a user action, a sign-in, new credentials, a limit reset,
+    /// recovery after sleep or offline. Each has its own reason to want data now, so the
+    /// request spacing that throttles the timer does not apply; the 429 cooldown does.
+    /// Requested during a fetch, it runs once that fetch finishes instead of being dropped.
     func refresh(reason: String = "unknown") async {
-        guard pollingManager.canMakeRequest(reason: reason) else { return }
+        if pollingManager.isFetching {
+            print("AppState: Refresh (\(reason)) queued behind the fetch in flight")
+            refreshQueued = true
+            return
+        }
+        guard pollingManager.canMakeRequest(reason: reason, enforceMinimumInterval: false) else { return }
         await performRefresh(explicit: true)
     }
 
-    /// Internal refresh used by polling timer (timer already checks canMakeRequest).
-    /// - Parameter explicit: Re-read the CLI credentials rather than reuse a recent read.
+    /// Timer ticks come here directly, having passed `canMakeRequest` with request spacing.
     private func performRefresh(explicit: Bool) async {
         guard pollingManager.beginFetch() else { return }
-        defer { pollingManager.endFetch() }
         await usageManager.fetchUsage(reloadCredentials: explicit)
+        recordFetchOutcome()
+        pollingManager.endFetch()
 
-        if usageManager.error == nil {
-            lastUpdateTime = Date()
+        if refreshQueued {
+            refreshQueued = false
+            // Its own task: the caller's task (limit-reset, wake recovery, ConnectView's
+            // watcher) is often cancelled right after its fetch, which would cancel this one.
+            Task { await refresh(reason: "queued") }
         }
+    }
 
-        // Back off on what the PRIMARY API reported, not on what the user ended up seeing.
-        // A successful fallback clears `error`, so keying off that would let a 429 pass
-        // unnoticed and we'd keep spending a rate-limited request on every tick.
-        if case .rateLimited(let retryAfter)? = usageManager.lastPrimaryError {
-            pollingManager.recordRateLimitHit(retryAfter: retryAfter)
-        } else if usageManager.error != nil {
-            pollingManager.recordFailure()
-        } else {
+    private func recordFetchOutcome() {
+        guard let error = usageManager.error else {
+            lastUpdateTime = Date()
             // Data is flowing, whether the primary or the fallback served it. A primary
             // failure the fallback covered must not trip the circuit breaker, or a
             // web-only user would be throttled to the 10-minute backoff interval.
             pollingManager.recordSuccess()
+            return
         }
+
+        // A 429 from the primary gates ALL requests only when nothing else served data.
+        // When the fallback covered it, UsageManager already parks the primary for the
+        // Retry-After window and keeps serving from the fallback; arming the global cooldown
+        // on top of that froze the fallback too, leaving the numbers stale for up to 10 min.
+        if case .rateLimited(let retryAfter)? = usageManager.lastPrimaryError {
+            pollingManager.recordRateLimitHit(retryAfter: retryAfter)
+        } else if pollingManager.isNetworkAvailable,
+                  let appError = error as? AppError,
+                  appError != .networkUnavailable, appError != .cancelled {
+            pollingManager.recordFailure()
+        }
+        // Offline failures are expected and not counted: the network returning triggers a
+        // refresh of its own, and a breaker tripped meanwhile would delay it by 10 minutes.
+        // A cancelled fetch says nothing about the server either.
     }
 
     // MARK: - Notifications
@@ -282,6 +323,25 @@ class AppState: ObservableObject {
         let maxUsage = data.displayWindows.map(\.usage).max() ?? 0
 
         pollingManager.updateForUsage(maxUsage)
+    }
+
+    /// A limit that has just reset keeps showing its old percentage until the next poll,
+    /// which can be minutes away. Poll right after the earliest upcoming reset instead, so
+    /// the menu bar drops promptly and the reset notification fires on time.
+    private func scheduleRefreshAfterNextReset(_ data: UsageData) {
+        resetRefreshTask?.cancel()
+        let now = Date()
+        guard let nextReset = data.displayWindows.compactMap(\.resetsAt).filter({ $0 > now }).min() else {
+            resetRefreshTask = nil
+            return
+        }
+
+        let delay = nextReset.timeIntervalSince(now) + Constants.Polling.postResetRefreshDelay
+        resetRefreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.refresh(reason: "limit_reset")
+        }
     }
 
     // MARK: - Sleep/Wake Management
@@ -338,6 +398,9 @@ class AppState: ObservableObject {
             // All retries exhausted - start normal polling anyway, NWPathMonitor will trigger when network returns
             guard !Task.isCancelled else { return }
             print("AppState: Wake recovery exhausted all retries, falling back to normal polling")
+            if !self.pollingManager.isFetching {
+                self.usageManager.endStaleDataPlaceholder()
+            }
             self.pollingManager.schedulePostWakeTimer()
         }
     }
@@ -347,12 +410,12 @@ class AppState: ObservableObject {
     private func onNetworkBecameAvailable() {
         guard pollingManager.isRunning else { return }
 
-        // If we have no data or data might be stale, refresh immediately
-        if usageData == nil {
-            print("AppState: Network became available with no data, triggering refresh")
-            Task {
-                await refresh(reason: "network_recovery")
-            }
+        // Whatever is on screen was fetched before the outage, or is the cache. The breaker
+        // may also be holding the timer at its 10-minute backoff: don't wait for it.
+        guard usageData == nil || pollingManager.isDataStale(lastUpdateTime: lastUpdateTime) else { return }
+        print("AppState: Network became available with stale data, triggering refresh")
+        Task {
+            await refresh(reason: "network_recovery")
         }
     }
 }

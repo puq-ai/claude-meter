@@ -71,6 +71,10 @@ enum Constants {
         static let minInterval: TimeInterval = 30
         static let maxInterval: TimeInterval = 300
 
+        /// Delay after a limit's `resets_at` before refreshing, so the server has rolled the
+        /// window over by the time we ask.
+        static let postResetRefreshDelay: TimeInterval = 5
+
         // Adaptive polling thresholds
         static let highUsageThreshold: Double = 75
         static let criticalUsageThreshold: Double = 90
@@ -128,8 +132,8 @@ enum Constants {
         static let userDefaultsKey = "com.claudemeter.settings"
 
         // Validation bounds
-        static let minRefreshInterval = 30
-        static let maxRefreshInterval = 600
+        static let minRefreshInterval = Int(Polling.minInterval)
+        static let maxRefreshInterval = Int(Polling.maxInterval)
 
         // Defaults
         static let defaultRefreshInterval = 30
