@@ -14,13 +14,11 @@ class MockAPIService: APIServiceProtocol {
     // MARK: - Call Tracking
     var fetchUsageCallCount = 0
     var fetchUsageWithRetryCallCount = 0
-    var validateTokenCallCount = 0
     var lastToken: String?
 
     // MARK: - Stubbed Responses
     var stubbedUsageData: UsageData?
     var stubbedError: Error?
-    var stubbedTokenValid = true
 
     // MARK: - Web Fallback (kept separate from the primary stubs so a test can make the
     // primary fail while the fallback succeeds - the whole point of the fallback)
@@ -66,12 +64,6 @@ class MockAPIService: APIServiceProtocol {
         return data
     }
 
-    func validateToken(_ token: String) async -> Bool {
-        validateTokenCallCount += 1
-        lastToken = token
-        return stubbedTokenValid
-    }
-
     func fetchUsageFromWeb(sessionKey: String, organizationId: String) async throws -> (UsageData, String?) {
         fetchUsageFromWebCallCount += 1
         lastWebSessionKey = sessionKey
@@ -102,11 +94,9 @@ class MockAPIService: APIServiceProtocol {
     func reset() {
         fetchUsageCallCount = 0
         fetchUsageWithRetryCallCount = 0
-        validateTokenCallCount = 0
         lastToken = nil
         stubbedUsageData = nil
         stubbedError = nil
-        stubbedTokenValid = true
         fetchUsageFromWebCallCount = 0
         lastWebSessionKey = nil
         lastWebOrganizationId = nil

@@ -204,15 +204,6 @@ class APIService: APIServiceProtocol {
         throw APIError.maxRetriesExceeded(lastError: lastError)
     }
 
-    func validateToken(_ token: String) async -> Bool {
-        do {
-            _ = try await fetchUsage(token: token)
-            return true
-        } catch {
-            return false
-        }
-    }
-
     // MARK: - Web API Fallback
 
     func fetchUsageFromWeb(sessionKey: String, organizationId: String) async throws -> (UsageData, String?) {
@@ -409,17 +400,5 @@ class APIService: APIServiceProtocol {
             "Accept": Constants.API.acceptType,
             "Content-Type": Constants.API.contentType
         ]
-    }
-}
-
-// MARK: - Async Extension for easier use
-extension APIService {
-    /// Convenience method that automatically uses retry
-    func getUsage(token: String, withRetry: Bool = true) async throws -> UsageData {
-        if withRetry {
-            return try await fetchUsageWithRetry(token: token)
-        } else {
-            return try await fetchUsage(token: token)
-        }
     }
 }

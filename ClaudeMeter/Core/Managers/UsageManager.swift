@@ -277,11 +277,4 @@ class UsageManager: ObservableObject {
     var hasCredentials: Bool {
         return keychainService.hasCredentials()
     }
-
-    func validateCredentials() async -> Bool {
-        guard let credentials = try? keychainService.getCredentials() else {
-            return false
-        }
-        return await apiService.validateToken(credentials.accessToken)
-    }
 }
