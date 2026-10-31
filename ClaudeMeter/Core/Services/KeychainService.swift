@@ -115,11 +115,24 @@ class KeychainService: KeychainServiceProtocol {
 
     /// Read credentials using security CLI (no password prompt)
     /// This avoids the macOS Keychain password dialog that appears when accessing
-    /// another app's Keychain items via Security framework
-    private func readCredentialsViaShell() throws -> Data {
+    /// another app's Keychain items via Security framework.
+    ///
+    /// The subprocess is waited on from a background queue: callers are on the main actor,
+    /// and `waitUntilExit()` there both froze the UI and spun the main run loop, letting
+    /// other main-actor work re-enter mid-fetch.
+    private func readCredentialsViaShell() async throws -> Data {
+        let service = serviceName
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(with: Result { try Self.runSecurityFindPassword(service: service) })
+            }
+        }
+    }
+
+    private static func runSecurityFindPassword(service: String) throws -> Data {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", serviceName, "-w"]
+        process.arguments = ["find-generic-password", "-s", service, "-w"]
 
         let outputPipe = Pipe()
         let errorPipe = Pipe()
@@ -157,10 +170,10 @@ class KeychainService: KeychainServiceProtocol {
 
     /// Tries to find credentials stored by Claude Code CLI
     /// Claude Code stores credentials in JSON format with claudeAiOauth wrapper
-    func getCredentials() throws -> ClaudeCredentials? {
+    func getCredentials() async throws -> ClaudeCredentials? {
         do {
             // Use shell command to avoid Keychain password prompt
-            let data = try readCredentialsViaShell()
+            let data = try await readCredentialsViaShell()
 
             // First try to decode as ClaudeKeychainData (wrapped format)
             if let keychainData = try? JSONDecoder().decode(ClaudeKeychainData.self, from: data) {
@@ -196,9 +209,9 @@ class KeychainService: KeychainServiceProtocol {
     }
 
     /// Check if Claude Code credentials exist in Keychain
-    func hasCredentials() -> Bool {
+    func hasCredentials() async -> Bool {
         do {
-            _ = try readCredentialsViaShell()
+            _ = try await readCredentialsViaShell()
             return true
         } catch {
             return false

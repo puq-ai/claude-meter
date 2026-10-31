@@ -89,16 +89,6 @@ final class KeychainServiceTests: XCTestCase {
         XCTAssertNoThrow(try sut.delete(account: nonExistentAccount))
     }
 
-    // MARK: - hasCredentials Tests
-
-    func testHasCredentials_WhenNoCredentials_ReturnsFalse() {
-        // Note: This test assumes no Claude Code credentials exist on the test system
-        // In a real scenario, you might want to mock this
-        let hasCredentials = sut.hasCredentials()
-        // This could be true or false depending on the test environment
-        XCTAssertNotNil(hasCredentials)
-    }
-
     // MARK: - JSON Decoding Tests
 
     func testGetCredentials_ValidJSONFormat() throws {

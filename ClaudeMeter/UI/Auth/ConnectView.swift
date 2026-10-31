@@ -116,7 +116,7 @@ struct ConnectView: View {
             for _ in 0..<150 {   // ~5 minutes at 2s
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 guard !Task.isCancelled else { return }
-                if appState.hasCLICredentials {
+                if await appState.hasCLICredentials() {
                     await appState.refresh(reason: "credentials_detected")
                     return
                 }

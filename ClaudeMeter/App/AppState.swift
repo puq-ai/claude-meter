@@ -122,8 +122,8 @@ class AppState: ObservableObject {
 
     /// Whether Claude Code CLI credentials are present right now. Read live rather than
     /// cached: the CLI writes them to the Keychain, which nothing can observe for changes.
-    var hasCLICredentials: Bool {
-        usageManager.hasCredentials
+    func hasCLICredentials() async -> Bool {
+        await usageManager.hasCredentials()
     }
 
     var isWebSessionConfigured: Bool {

@@ -130,7 +130,7 @@ class UsageManager: ObservableObject {
 
         var localTokenLooksExpired = false
         do {
-            guard let credentials = try keychainService.getCredentials() else {
+            guard let credentials = try await keychainService.getCredentials() else {
                 throw AppError.noCredentials
             }
 
@@ -270,7 +270,7 @@ class UsageManager: ObservableObject {
 
     // MARK: - Credentials Check
 
-    var hasCredentials: Bool {
-        return keychainService.hasCredentials()
+    func hasCredentials() async -> Bool {
+        await keychainService.hasCredentials()
     }
 }

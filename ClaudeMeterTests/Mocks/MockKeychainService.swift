@@ -65,12 +65,12 @@ class MockKeychainService: KeychainServiceProtocol {
         "\(service)/\(account)"
     }
 
-    func getCredentials() throws -> ClaudeCredentials? {
+    func getCredentials() async throws -> ClaudeCredentials? {
         getCredentialsCallCount += 1
         return stubbedCredentials
     }
 
-    func hasCredentials() -> Bool {
+    func hasCredentials() async -> Bool {
         hasCredentialsCallCount += 1
         return stubbedHasCredentials
     }
