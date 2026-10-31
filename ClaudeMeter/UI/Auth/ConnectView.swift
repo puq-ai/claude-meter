@@ -19,7 +19,8 @@ struct ConnectView: View {
     @State private var didCopyCommand = false
     @State private var pollTask: Task<Void, Never>?
 
-    private static let loginCommand = "claude login"
+    /// `claude login` is not a subcommand: the CLI treats it as a prompt and starts a chat.
+    private static let loginCommand = "claude auth login"
 
     var body: some View {
         VStack(spacing: 14) {
