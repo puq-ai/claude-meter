@@ -14,9 +14,12 @@ APP_PATH="${BUILD_DIR}/Build/Products/Release/${APP_NAME}.app"
 
 echo "==> Building ${APP_NAME} v${VERSION}..."
 
+# Stamp the requested version into the bundle: without this the About screen reports
+# whatever MARKETING_VERSION the project happens to hold, not the release being built.
 xcodebuild -scheme "$APP_NAME" \
   -configuration Release \
   -derivedDataPath "$BUILD_DIR" \
+  MARKETING_VERSION="$VERSION" \
   clean build \
   -quiet
 
