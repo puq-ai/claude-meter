@@ -39,7 +39,10 @@ final class WebLoginController: NSObject {
     private var webView: WKWebView?
     private var dataStore: WKWebsiteDataStore?
     private var statusLabel: NSTextField?
-    private var completion: ((WebLoginOutcome) -> Void)?
+    /// Everyone waiting on the current sign-in. A second `present` while the window is open
+    /// joins the wait rather than being dropped, which left that caller's "signing in…"
+    /// state stuck on forever.
+    private var completions: [(WebLoginOutcome) -> Void] = []
     private var timeoutTask: Task<Void, Never>?
     private var validationTask: Task<Void, Never>?
 
@@ -66,13 +69,14 @@ final class WebLoginController: NSObject {
     // MARK: - Presentation
 
     func present(completion: @escaping (WebLoginOutcome) -> Void) {
+        completions.append(completion)
+
         if window != nil {
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        self.completion = completion
         self.hasDelivered = false
         self.lastAttempt = [:]
         self.firstCandidateSeenAt = nil
@@ -162,9 +166,9 @@ final class WebLoginController: NSObject {
         guard !hasDelivered else { return }
         hasDelivered = true
 
-        let completion = self.completion
+        let completions = self.completions
         teardown()
-        completion?(outcome)
+        completions.forEach { $0(outcome) }
     }
 
     private func teardown() {
@@ -186,7 +190,7 @@ final class WebLoginController: NSObject {
         window?.delegate = nil
         window?.close()
         window = nil
-        completion = nil
+        completions = []
     }
 
     private func showStatus(_ message: String) {
