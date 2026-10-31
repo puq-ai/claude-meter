@@ -788,6 +788,38 @@ final class LimitsSchemaTests: XCTestCase {
                        ["weekly_scoped:model_a", "weekly_scoped:model_b"])
     }
 
+    // MARK: Menu bar figure
+
+    func testMenuBarUsage_FallsBackToWeeklyWhenPlanHasNoSessionLimit() throws {
+        // Shape observed for plans without a 5-hour window: no `five_hour`, no `session` entry.
+        let usageData = try decode("""
+        {
+            "seven_day": { "utilization": 44, "resets_at": "2026-11-04T11:00:00Z" },
+            "limits": [
+                { "group": "weekly", "kind": "weekly_all", "percent": 44, "is_active": true },
+                { "group": "weekly", "kind": "weekly_scoped", "percent": 2,
+                  "scope": { "model": { "display_name": "Fable" } } }
+            ]
+        }
+        """)
+
+        XCTAssertNil(usageData.usage(forLimitId: "5h"))
+        XCTAssertEqual(usageData.menuBarUsage, 44)
+    }
+
+    func testMenuBarUsage_PrefersSessionLimitWhenPlanHasOne() throws {
+        let usageData = try decode("""
+        {
+            "limits": [
+                { "group": "session", "kind": "session", "percent": 12 },
+                { "group": "weekly", "kind": "weekly_all", "percent": 44 }
+            ]
+        }
+        """)
+
+        XCTAssertEqual(usageData.menuBarUsage, 12)
+    }
+
     // MARK: Notification naming
 
     func testNotificationName_DropsTheLimitSuffix() throws {

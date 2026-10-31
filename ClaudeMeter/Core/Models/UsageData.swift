@@ -378,6 +378,14 @@ extension UsageData {
         displayWindows.first { $0.id == id }?.usage
     }
 
+    /// The single figure the menu bar ring shows: the 5-hour session limit, or the 7-day
+    /// limit on plans whose response carries no session limit at all (the server now omits
+    /// both `five_hour` and the `session` entry for them). Keyed off the response, not the
+    /// plan name, so a plan that still has a session window keeps showing it.
+    var menuBarUsage: Double? {
+        usage(forLimitId: "5h") ?? usage(forLimitId: "7d")
+    }
+
     /// Pre-`limits` response shape. Still reachable through the claude.ai web fallback.
     private var legacyDisplayWindows: [DisplayLimit] {
         var windows: [DisplayLimit] = []
