@@ -46,7 +46,6 @@ class PollingManager {
 
     // Sleep tracking
     private var sleepStartTime: Date?
-    private(set) var lastSleepDuration: TimeInterval = 0
 
     // Network monitoring
     private var networkMonitor: NWPathMonitor?
@@ -113,15 +112,6 @@ class PollingManager {
         }
     }
 
-    /// Update configuration
-    func updateConfig(_ newConfig: Config) {
-        self.config = newConfig
-        if state == .running {
-            let newInterval = calculateInterval(for: lastUsage)
-            scheduleTimer(interval: newInterval)
-        }
-    }
-
     /// Set default interval from settings
     func setDefaultInterval(_ interval: TimeInterval) {
         config.defaultInterval = max(config.minInterval, min(interval, config.maxInterval))
@@ -167,16 +157,12 @@ class PollingManager {
     /// Called when system wakes from sleep. Returns the sleep duration.
     @discardableResult
     func onSystemDidWake() -> TimeInterval {
-        if let start = sleepStartTime {
-            lastSleepDuration = Date().timeIntervalSince(start)
-        } else {
-            lastSleepDuration = 0
-        }
+        let sleepDuration = sleepStartTime.map { Date().timeIntervalSince($0) } ?? 0
         sleepStartTime = nil
         state = .running
         // Do NOT schedule timer here - AppState will manage post-wake timing
-        print("PollingManager: System woke after \(String(format: "%.0f", lastSleepDuration))s sleep")
-        return lastSleepDuration
+        print("PollingManager: System woke after \(String(format: "%.0f", sleepDuration))s sleep")
+        return sleepDuration
     }
 
     /// Schedule normal polling timer after wake recovery completes
@@ -332,13 +318,5 @@ class PollingManager {
 extension PollingManager {
     var isRunning: Bool {
         return state == .running
-    }
-
-    var isPaused: Bool {
-        return state == .paused
-    }
-
-    var currentPollingInterval: TimeInterval {
-        return currentInterval
     }
 }

@@ -385,7 +385,7 @@ final class PollingManagerTests: XCTestCase {
         sut.pause()
 
         // Then
-        XCTAssertTrue(sut.isPaused)
+        XCTAssertEqual(sut.state, .paused)
     }
 }
 
