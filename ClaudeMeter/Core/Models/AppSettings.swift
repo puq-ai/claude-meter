@@ -120,29 +120,6 @@ struct AppSettings: Codable, Equatable {
         webOrganizationName = try container.decodeIfPresent(String.self, forKey: .webOrganizationName) ?? defaults.webOrganizationName
         legacyWebSessionKey = try container.decodeIfPresent(String.self, forKey: .webSessionKey)
     }
-
-    // Computed property for backward compatibility
-    var notifyAt90: Bool {
-        get { notifyAt.contains(90) }
-        set {
-            if newValue && !notifyAt.contains(90) {
-                notifyAt.append(90)
-                notifyAt.sort()
-            } else if !newValue {
-                notifyAt.removeAll { $0 == 90 }
-            }
-        }
-    }
-
-    // Check if notification should be sent for a threshold
-    func shouldNotify(at threshold: Int) -> Bool {
-        return notificationsEnabled && notifyAt.contains(threshold)
-    }
-
-    // Get all enabled thresholds sorted
-    var sortedThresholds: [Int] {
-        return notifyAt.sorted()
-    }
 }
 
 // MARK: - Settings Keys

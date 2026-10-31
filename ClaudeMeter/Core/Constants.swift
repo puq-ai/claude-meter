@@ -131,7 +131,6 @@ enum Constants {
 
     // MARK: - Credentials
     enum Credentials {
-        static let expirationWarningThreshold: TimeInterval = 5 * 60  // 5 minutes
         static let defaultSubscriptionType = "pro"
     }
 

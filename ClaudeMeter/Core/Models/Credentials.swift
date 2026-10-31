@@ -18,14 +18,6 @@ struct ClaudeCredentials: Codable {
         return Date() < expiresAt
     }
 
-    var isExpiringSoon: Bool {
-        return expiresAt.timeIntervalSinceNow < Constants.Credentials.expirationWarningThreshold
-    }
-
-    var timeUntilExpiration: TimeInterval {
-        return expiresAt.timeIntervalSinceNow
-    }
-
     // Custom decoding to handle both Date and TimeInterval formats
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

@@ -231,47 +231,6 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.notifyAt, [75, 90, 95])
     }
 
-    func testShouldNotify_EnabledThreshold() {
-        var settings = AppSettings()
-        settings.notificationsEnabled = true
-        settings.notifyAt = [75, 90]
-
-        XCTAssertTrue(settings.shouldNotify(at: 75))
-        XCTAssertTrue(settings.shouldNotify(at: 90))
-        XCTAssertFalse(settings.shouldNotify(at: 95))
-    }
-
-    func testShouldNotify_DisabledNotifications() {
-        var settings = AppSettings()
-        settings.notificationsEnabled = false
-        settings.notifyAt = [75, 90, 95]
-
-        XCTAssertFalse(settings.shouldNotify(at: 75))
-        XCTAssertFalse(settings.shouldNotify(at: 90))
-        XCTAssertFalse(settings.shouldNotify(at: 95))
-    }
-
-    func testSortedThresholds() {
-        var settings = AppSettings()
-        settings.notifyAt = [95, 75, 90]
-
-        XCTAssertEqual(settings.sortedThresholds, [75, 90, 95])
-    }
-
-    func testNotifyAt90_BackwardsCompatibility() {
-        var settings = AppSettings()
-        settings.notifyAt = [75, 95]
-
-        XCTAssertFalse(settings.notifyAt90)
-
-        settings.notifyAt90 = true
-        XCTAssertTrue(settings.notifyAt.contains(90))
-        XCTAssertTrue(settings.notifyAt90)
-
-        settings.notifyAt90 = false
-        XCTAssertFalse(settings.notifyAt.contains(90))
-    }
-
     func testSettings_Encoding_Decoding() throws {
         // Given
         var settings = AppSettings()
