@@ -98,25 +98,6 @@ class KeychainService: KeychainServiceProtocol {
         return data
     }
 
-    /// Read without specifying account - finds the first item for the service
-    func readFirstItem() throws -> Data {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: serviceName,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status != errSecItemNotFound else { throw KeychainError.itemNotFound }
-        guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
-        guard let data = result as? Data else { throw KeychainError.invalidItemFormat }
-
-        return data
-    }
-
     func delete(account: String, service: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
