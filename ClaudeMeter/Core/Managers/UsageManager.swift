@@ -266,12 +266,6 @@ class UsageManager: ObservableObject {
         }
     }
 
-    /// Force refresh, ignoring cache
-    func forceRefresh() async {
-        cacheManager.clearCache()
-        await fetchUsage()
-    }
-
     // MARK: - Credentials Check
 
     var hasCredentials: Bool {
