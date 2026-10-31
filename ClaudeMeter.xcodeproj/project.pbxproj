@@ -59,7 +59,6 @@
 
 		/* Core */
 		CONST001 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC030; };
-		DIC001 /* DependencyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC031; };
 
 		/* Core Protocols */
 		PROTO001 /* APIServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC032; };
@@ -170,7 +169,6 @@
 
 		/* Core */
 		SRC030 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
-		SRC031 /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
 
 		/* Core Protocols */
 		SRC032 /* APIServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServiceProtocol.swift; sourceTree = "<group>"; };
@@ -281,7 +279,6 @@
 			isa = PBXGroup;
 			children = (
 				SRC030 /* Constants.swift */,
-				SRC031 /* DependencyContainer.swift */,
 				GRP_PROTOCOLS /* Protocols */,
 				GRP_MODELS /* Models */,
 				GRP_SERVICES /* Services */,
@@ -600,7 +597,6 @@
 				APP002 /* AppDelegate.swift in Sources */,
 				APP003 /* AppState.swift in Sources */,
 				CONST001 /* Constants.swift in Sources */,
-				DIC001 /* DependencyContainer.swift in Sources */,
 				PROTO001 /* APIServiceProtocol.swift in Sources */,
 				PROTO002 /* KeychainServiceProtocol.swift in Sources */,
 				PROTO003 /* CacheManagerProtocol.swift in Sources */,
