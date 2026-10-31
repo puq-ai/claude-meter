@@ -15,35 +15,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var appState: AppState?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Initialize AppState
+        // AppState applies persisted settings (dock visibility included) as it initializes.
         let state = AppState()
         appState = state
 
-        // Apply initial dock visibility setting
-        applyDockVisibility()
-
-        // Setup status item controller
         statusItemController = StatusItemController(appState: state)
 
-        // Register for app lifecycle notifications
         registerForLifecycleNotifications()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Cleanup
         appState?.pollingManager.stopNetworkMonitor()
         appState?.pollingManager.stop()
-    }
-
-    // MARK: - Dock Visibility
-
-    private func applyDockVisibility() {
-        guard let appState = appState else { return }
-        if appState.settings.showInDock {
-            NSApp.setActivationPolicy(.regular)
-        } else {
-            NSApp.setActivationPolicy(.accessory)
-        }
     }
 
     // MARK: - Lifecycle Notifications
