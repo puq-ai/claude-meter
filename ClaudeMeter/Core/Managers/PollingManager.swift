@@ -10,7 +10,10 @@ import Foundation
 import Combine
 import Network
 
-class PollingManager {
+/// Main-actor isolated: the timer, the fetch guard and the rate-limit gate are all read and
+/// written from AppState, and a timer tick or network change must not race those writes.
+@MainActor
+final class PollingManager {
     // MARK: - Configuration
     struct Config {
         var defaultInterval: TimeInterval = Constants.Polling.defaultInterval
@@ -49,8 +52,9 @@ class PollingManager {
 
     // Network monitoring
     private var networkMonitor: NWPathMonitor?
-    private var networkMonitorQueue: DispatchQueue?
-    private(set) var isNetworkAvailable: Bool = true
+    /// Last path status NWPathMonitor reported. Failures while this is false are expected and
+    /// must not trip the circuit breaker: the network coming back triggers its own refresh.
+    private(set) var isNetworkAvailable = true
     private var networkBecameAvailableCallback: (() -> Void)?
 
     // Rate limit gate
@@ -95,7 +99,7 @@ class PollingManager {
     func resume() {
         guard state == .paused else { return }
         state = .running
-        scheduleTimer(interval: currentInterval)
+        rescheduleForCurrentState()
     }
 
     /// Update polling interval based on usage
@@ -112,11 +116,21 @@ class PollingManager {
         }
     }
 
-    /// Set default interval from settings
+    /// Set default interval from settings. Reschedules only when the value actually changed,
+    /// and never while the circuit breaker holds the timer at its backoff interval - an
+    /// unrelated settings edit must not cut a failure or rate-limit backoff short.
     func setDefaultInterval(_ interval: TimeInterval) {
-        config.defaultInterval = max(config.minInterval, min(interval, config.maxInterval))
-        if state == .running && lastUsage < config.highUsageThreshold {
-            scheduleTimer(interval: config.defaultInterval)
+        let clamped = max(config.minInterval, min(interval, config.maxInterval))
+        guard clamped != config.defaultInterval else { return }
+        config.defaultInterval = clamped
+        guard !isInFailureBackoff else { return }
+        let newInterval = calculateInterval(for: lastUsage)
+        if state == .running {
+            scheduleTimer(interval: newInterval)
+        } else {
+            // Not started yet (launch applies settings before polling begins): `start`
+            // schedules with `currentInterval`, which would otherwise still be the default.
+            currentInterval = newInterval
         }
     }
 
@@ -125,11 +139,7 @@ class PollingManager {
         consecutiveFailures = 0
         if isInFailureBackoff {
             isInFailureBackoff = false
-            // Return to normal polling interval
-            if state == .running {
-                let newInterval = calculateInterval(for: lastUsage)
-                scheduleTimer(interval: newInterval)
-            }
+            rescheduleForCurrentState()
         }
     }
 
@@ -165,12 +175,11 @@ class PollingManager {
         return sleepDuration
     }
 
-    /// Schedule normal polling timer after wake recovery completes
+    /// Schedule polling after wake recovery completes. Honours a failure backoff or a 429
+    /// cooldown still in force: wake recovery ending must not reset either.
     func schedulePostWakeTimer() {
-        guard state == .running else { return }
-        let interval = calculateInterval(for: lastUsage)
-        scheduleTimer(interval: interval)
-        print("PollingManager: Post-wake timer scheduled at \(interval)s interval")
+        rescheduleForCurrentState()
+        print("PollingManager: Post-wake timer scheduled at \(currentInterval)s interval")
     }
 
     // MARK: - Network Monitoring
@@ -178,29 +187,30 @@ class PollingManager {
     func startNetworkMonitor(onBecameAvailable: @escaping () -> Void) {
         networkBecameAvailableCallback = onBecameAvailable
         let monitor = NWPathMonitor()
-        let queue = DispatchQueue(label: "com.claudemeter.networkmonitor")
         networkMonitor = monitor
-        networkMonitorQueue = queue
 
+        // The handler runs on the monitor's queue; only the Bool crosses over, and all state
+        // is touched on the main actor.
         monitor.pathUpdateHandler = { [weak self] path in
-            let wasAvailable = self?.isNetworkAvailable ?? true
             let isNowAvailable = path.status == .satisfied
-            self?.isNetworkAvailable = isNowAvailable
-
-            if !wasAvailable && isNowAvailable {
-                print("PollingManager: Network became available")
-                DispatchQueue.main.async {
-                    self?.networkBecameAvailableCallback?()
-                }
+            Task { @MainActor [weak self] in
+                self?.networkPathChanged(isAvailable: isNowAvailable)
             }
         }
-        monitor.start(queue: queue)
+        monitor.start(queue: DispatchQueue(label: "com.claudemeter.networkmonitor"))
+    }
+
+    private func networkPathChanged(isAvailable: Bool) {
+        let wasAvailable = isNetworkAvailable
+        isNetworkAvailable = isAvailable
+        guard !wasAvailable && isAvailable else { return }
+        print("PollingManager: Network became available")
+        networkBecameAvailableCallback?()
     }
 
     func stopNetworkMonitor() {
         networkMonitor?.cancel()
         networkMonitor = nil
-        networkMonitorQueue = nil
         networkBecameAvailableCallback = nil
     }
 
@@ -225,7 +235,10 @@ class PollingManager {
     // MARK: - Rate Limit Gate
 
     /// Central gate for all API requests. Returns false if request should be blocked.
-    func canMakeRequest(reason: String = "unknown") -> Bool {
+    /// - Parameter enforceMinimumInterval: Timer ticks keep the request spacing. Explicit
+    ///   refreshes (user action, credential change, recovery) skip it; the 429 cooldown and
+    ///   the in-flight check always apply.
+    func canMakeRequest(reason: String = "unknown", enforceMinimumInterval: Bool = true) -> Bool {
         // Check 429 cooldown
         if let cooldownUntil = rateLimitCooldownUntil, Date() < cooldownUntil {
             let remaining = cooldownUntil.timeIntervalSince(Date())
@@ -234,7 +247,7 @@ class PollingManager {
         }
 
         // Check minimum request interval
-        if let lastRequest = lastRequestTime {
+        if enforceMinimumInterval, let lastRequest = lastRequestTime {
             let elapsed = Date().timeIntervalSince(lastRequest)
             if elapsed < Constants.RateLimit.minimumRequestInterval {
                 print("PollingManager: Request blocked (\(reason)) - too soon, \(String(format: "%.0f", Constants.RateLimit.minimumRequestInterval - elapsed))s remaining")
@@ -253,16 +266,22 @@ class PollingManager {
 
     /// Record a 429 rate limit hit and enter cooldown
     func recordRateLimitHit(retryAfter: TimeInterval?) {
-        let cooldown = min(retryAfter ?? Constants.RateLimit.defaultCooldownDuration, Constants.RateLimit.maxCooldownDuration)
+        // Already in backoff means this 429 answered the post-cooldown probe.
+        let probeWasRateLimited = isInFailureBackoff
+        let cooldown = Constants.RateLimit.cooldown(retryAfter: retryAfter)
         rateLimitCooldownUntil = Date().addingTimeInterval(cooldown)
 
         // Activate circuit breaker immediately
         consecutiveFailures = config.maxConsecutiveFailures
         isInFailureBackoff = true
 
-        // Reschedule timer to fire after cooldown
-        if state == .running {
-            scheduleTimer(interval: cooldown)
+        // One probe when the cooldown ends, then the backoff interval until a fetch succeeds.
+        // Probing again after every cooldown polled a rate-limited API faster than normal.
+        // The backoff interval is at least the longest cooldown, so it never ticks inside one.
+        if probeWasRateLimited, state == .running {
+            scheduleTimer(interval: config.failureBackoffInterval)
+        } else {
+            rescheduleForCurrentState()
         }
 
         print("PollingManager: Rate limited - cooldown for \(String(format: "%.0f", cooldown))s")
@@ -276,41 +295,55 @@ class PollingManager {
 
     // MARK: - Private Methods
 
-    /// Calculate optimal polling interval based on current usage
-    /// Higher usage = more frequent polling to catch limit resets
+    /// Polling interval for the current usage. The user's setting is the ceiling: adaptive
+    /// polling only speeds up as a limit gets close, it never polls slower than chosen.
     func calculateInterval(for usage: Double) -> TimeInterval {
         if usage >= config.criticalUsageThreshold {
-            // Critical: poll every 30 seconds
+            // Critical: poll at the fastest allowed rate
             return config.minInterval
         } else if usage >= config.highUsageThreshold {
-            // High: poll every 45 seconds
+            // High: halfway between the fastest rate and the chosen one
             return (config.minInterval + config.defaultInterval) / 2
-        } else if usage >= 50 {
-            // Medium: use default interval
-            return config.defaultInterval
         } else {
-            // Low usage: can poll less frequently
-            return min(config.defaultInterval * 1.5, config.maxInterval)
+            return config.defaultInterval
         }
     }
 
-    private func scheduleTimer(interval: TimeInterval) {
+    /// Arm the timer for whatever the 429 gate and the circuit breaker currently require.
+    private func rescheduleForCurrentState() {
+        guard state == .running else { return }
+        if let cooldownUntil = rateLimitCooldownUntil, cooldownUntil > Date() {
+            scheduleTimer(
+                interval: config.failureBackoffInterval,
+                firstFireIn: cooldownUntil.timeIntervalSinceNow
+            )
+        } else if isInFailureBackoff {
+            scheduleTimer(interval: config.failureBackoffInterval)
+        } else {
+            scheduleTimer(interval: calculateInterval(for: lastUsage))
+        }
+    }
+
+    /// - Parameter firstFireIn: Delay before the first tick; defaults to `interval`.
+    private func scheduleTimer(interval: TimeInterval, firstFireIn: TimeInterval? = nil) {
         timer?.invalidate()
         currentInterval = interval
 
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task {
+        let timer = Timer(
+            fire: Date().addingTimeInterval(firstFireIn ?? interval),
+            interval: interval,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 guard self.canMakeRequest(reason: "timer") else { return }
                 // performRefresh handles its own beginFetch/endFetch guard
                 await self.onTick?()
             }
         }
-
-        // Ensure timer runs on common run loop mode
-        if let timer = timer {
-            RunLoop.main.add(timer, forMode: .common)
-        }
+        // Common modes keep the timer firing while a menu or the popover is tracking.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 }
 

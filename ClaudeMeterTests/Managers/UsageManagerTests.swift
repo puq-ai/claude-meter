@@ -312,6 +312,7 @@ final class AppSettingsTests: XCTestCase {
 
 // MARK: - PollingManager Tests
 
+@MainActor
 final class PollingManagerTests: XCTestCase {
     var sut: PollingManager!
 
@@ -326,12 +327,13 @@ final class PollingManagerTests: XCTestCase {
         super.tearDown()
     }
 
-    func testCalculateInterval_LowUsage() {
-        // Given usage < 50%
+    func testCalculateInterval_LowUsage_NeverSlowerThanChosenInterval() {
+        // Given usage < 50% and the user's chosen interval
+        sut.setDefaultInterval(60)
         let interval = sut.calculateInterval(for: 30)
 
-        // Then interval should be longer than default
-        XCTAssertGreaterThan(interval, Constants.Polling.defaultInterval)
+        // Then the setting is honoured: "1 Minute" must not quietly become 90 s
+        XCTAssertEqual(interval, 60)
     }
 
     func testCalculateInterval_MediumUsage() {
@@ -386,6 +388,25 @@ final class PollingManagerTests: XCTestCase {
 
         // Then
         XCTAssertEqual(sut.state, .paused)
+    }
+
+    /// Regression: `Retry-After: 0` armed a zero-length cooldown, and the timer scheduled at
+    /// that interval spun the run loop.
+    func testRateLimit_ZeroRetryAfterStillGatesRequests() {
+        sut.recordRateLimitHit(retryAfter: 0)
+
+        XCTAssertFalse(sut.canMakeRequest(reason: "test", enforceMinimumInterval: false))
+    }
+
+    func testExplicitRefresh_SkipsRequestSpacingButNotInFlightFetch() {
+        XCTAssertTrue(sut.beginFetch())
+        sut.endFetch()
+        XCTAssertFalse(sut.canMakeRequest(reason: "timer"), "timer ticks keep the spacing")
+        XCTAssertTrue(sut.canMakeRequest(reason: "manual", enforceMinimumInterval: false))
+
+        XCTAssertTrue(sut.beginFetch())
+        XCTAssertFalse(sut.canMakeRequest(reason: "manual", enforceMinimumInterval: false))
+        sut.endFetch()
     }
 }
 
