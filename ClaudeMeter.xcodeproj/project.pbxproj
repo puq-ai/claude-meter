@@ -43,7 +43,6 @@
 		UIP002 /* UsageCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC019; };
 		UIP003 /* ProgressRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC020; };
 		UIP004 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC021; };
-		UIP005 /* CountdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC022; };
 
 		/* UI Components */
 		UIC001 /* ColorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC023; };
@@ -157,7 +156,6 @@
 		SRC019 /* UsageCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageCardView.swift; sourceTree = "<group>"; };
 		SRC020 /* ProgressRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressRingView.swift; sourceTree = "<group>"; };
 		SRC021 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
-		SRC022 /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
 
 		/* UI Components */
 		SRC023 /* ColorTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorTheme.swift; sourceTree = "<group>"; };
@@ -379,7 +377,6 @@
 				SRC019 /* UsageCardView.swift */,
 				SRC020 /* ProgressRingView.swift */,
 				SRC021 /* ProgressBarView.swift */,
-				SRC022 /* CountdownView.swift */,
 			);
 			path = Popover;
 			sourceTree = "<group>";
@@ -636,7 +633,6 @@
 				UIP002 /* UsageCardView.swift in Sources */,
 				UIP003 /* ProgressRingView.swift in Sources */,
 				UIP004 /* ProgressBarView.swift in Sources */,
-				UIP005 /* CountdownView.swift in Sources */,
 				UIC001 /* ColorTheme.swift in Sources */,
 				UIC002 /* AnimatedNumber.swift in Sources */,
 				UIC003 /* PulseEffect.swift in Sources */,
