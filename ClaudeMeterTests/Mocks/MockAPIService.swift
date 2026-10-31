@@ -19,6 +19,8 @@ class MockAPIService: APIServiceProtocol {
     // MARK: - Stubbed Responses
     var stubbedUsageData: UsageData?
     var stubbedError: Error?
+    /// Tokens the primary answers with 401, regardless of `stubbedError`.
+    var rejectedTokens: Set<String> = []
 
     // MARK: - Web Fallback (kept separate from the primary stubs so a test can make the
     // primary fail while the fallback succeeds - the whole point of the fallback)
@@ -53,6 +55,9 @@ class MockAPIService: APIServiceProtocol {
         fetchUsageWithRetryCallCount += 1
         lastToken = token
 
+        if rejectedTokens.contains(token) {
+            throw APIError.unauthorized
+        }
         if let error = stubbedError {
             throw error
         }
@@ -97,6 +102,7 @@ class MockAPIService: APIServiceProtocol {
         lastToken = nil
         stubbedUsageData = nil
         stubbedError = nil
+        rejectedTokens = []
         fetchUsageFromWebCallCount = 0
         lastWebSessionKey = nil
         lastWebOrganizationId = nil

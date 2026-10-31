@@ -129,6 +129,9 @@ enum Constants {
     // MARK: - Credentials
     enum Credentials {
         static let defaultSubscriptionType = "pro"
+        /// How long a Keychain read is reused. Short enough that switching accounts in the CLI
+        /// shows up within a few polls; long enough not to spawn `security` on every tick.
+        static let cacheLifetime: TimeInterval = 300
     }
 
     // MARK: - UI Dimensions

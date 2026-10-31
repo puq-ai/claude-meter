@@ -62,6 +62,10 @@ class UsageManager: ObservableObject {
     private let cacheManager: CacheManagerProtocol
     private var isFetching: Bool = false
 
+    /// The CLI's credentials as last read, and when. Re-read once stale, once locally
+    /// expired, and whenever the server rejects them.
+    private var cachedCredentials: (credentials: ClaudeCredentials, readAt: Date)?
+
     /// While set, the primary API is known to be rate limited and is skipped in favour of
     /// the fallback, so a rate-limited request isn't spent on every tick.
     private var primaryUnhealthyUntil: Date?
@@ -100,7 +104,9 @@ class UsageManager: ObservableObject {
 
     // MARK: - Fetch Usage
 
-    func fetchUsage() async {
+    /// - Parameter reloadCredentials: Read the Keychain even if a recent read is cached. For
+    ///   explicit refreshes, which may follow `claude auth login` with another account.
+    func fetchUsage(reloadCredentials: Bool = false) async {
         guard !isFetching else {
             print("UsageManager: Fetch already in progress, skipping")
             return
@@ -130,16 +136,25 @@ class UsageManager: ObservableObject {
 
         var localTokenLooksExpired = false
         do {
-            guard let credentials = try await keychainService.getCredentials() else {
-                throw AppError.noCredentials
-            }
+            let credentials = try await loadCredentials(reload: reloadCredentials)
 
             // Recorded for error messaging only. There is deliberately no local expiry gate
             // here: the server is the authority on token validity, and a server 401 reaches
             // the fallback path while a client-side clock check would short-circuit it.
             localTokenLooksExpired = !credentials.isValid
 
-            let data = try await apiService.fetchUsageWithRetry(token: credentials.accessToken)
+            let data: UsageData
+            do {
+                data = try await apiService.fetchUsageWithRetry(token: credentials.accessToken)
+            } catch APIError.unauthorized where !reloadCredentials {
+                // The CLI may have rotated the token since it was cached: retry once with a
+                // fresh read, and only if it actually changed. A fetch that already read the
+                // Keychain has nothing newer to find.
+                let fresh = try await loadCredentials(reload: true)
+                guard fresh.accessToken != credentials.accessToken else { throw APIError.unauthorized }
+                localTokenLooksExpired = !fresh.isValid
+                data = try await apiService.fetchUsageWithRetry(token: fresh.accessToken)
+            }
 
             primaryUnhealthyUntil = nil
             applySuccess(data, source: .primary)
@@ -148,6 +163,19 @@ class UsageManager: ObservableObject {
         }
 
         authState = resolveAuthState()
+    }
+
+    private func loadCredentials(reload: Bool) async throws -> ClaudeCredentials {
+        if !reload, let cached = cachedCredentials, cached.credentials.isValid,
+           Date().timeIntervalSince(cached.readAt) < Constants.Credentials.cacheLifetime {
+            return cached.credentials
+        }
+        cachedCredentials = nil
+        guard let credentials = try await keychainService.getCredentials() else {
+            throw AppError.noCredentials
+        }
+        cachedCredentials = (credentials, Date())
+        return credentials
     }
 
     /// Derive the auth state from what the primary reported and what ended up serving data.

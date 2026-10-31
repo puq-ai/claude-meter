@@ -283,6 +283,23 @@ final class UsageManagerFallbackTests: XCTestCase {
         XCTAssertEqual(sut.authState, .failed(.keychainReadFailed))
     }
 
+    // MARK: - Credential reuse
+
+    /// The CLI rotates its token behind our back; a cached one must not turn that into an
+    /// auth failure.
+    func testRotatedToken_IsPickedUpOnRejection() async {
+        configurePrimary()
+        await sut.fetchUsage()
+
+        mockAPIService.rejectedTokens = [TestData.makeCredentials().accessToken]
+        mockKeychainService.stubbedCredentials = TestData.makeCredentials(accessToken: "rotated-token")
+        await sut.fetchUsage()
+
+        XCTAssertNil(sut.error)
+        XCTAssertEqual(mockAPIService.lastToken, "rotated-token")
+        XCTAssertEqual(sut.authState, .cliAuthenticated)
+    }
+
     // MARK: - Network errors
 
     func testOffline_IsReportedAsNetworkUnavailable() async {

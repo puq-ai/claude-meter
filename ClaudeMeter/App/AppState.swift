@@ -75,7 +75,7 @@ class AppState: ObservableObject {
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 300_000_000)
             self?.pollingManager.start { [weak self] in
-                await self?.performRefresh()
+                await self?.performRefresh(explicit: false)
             }
         }
 
@@ -234,14 +234,15 @@ class AppState: ObservableObject {
 
     func refresh(reason: String = "unknown") async {
         guard pollingManager.canMakeRequest(reason: reason) else { return }
-        await performRefresh()
+        await performRefresh(explicit: true)
     }
 
-    /// Internal refresh used by polling timer (timer already checks canMakeRequest)
-    private func performRefresh() async {
+    /// Internal refresh used by polling timer (timer already checks canMakeRequest).
+    /// - Parameter explicit: Re-read the CLI credentials rather than reuse a recent read.
+    private func performRefresh(explicit: Bool) async {
         guard pollingManager.beginFetch() else { return }
         defer { pollingManager.endFetch() }
-        await usageManager.fetchUsage()
+        await usageManager.fetchUsage(reloadCredentials: explicit)
 
         if usageManager.error == nil {
             lastUpdateTime = Date()
