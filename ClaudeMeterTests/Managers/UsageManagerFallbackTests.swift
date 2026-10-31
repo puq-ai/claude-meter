@@ -273,6 +273,35 @@ final class UsageManagerFallbackTests: XCTestCase {
         XCTAssertTrue(sut.authState.needsAttention)
     }
 
+    /// Regression: a web-only user whose claude.ai session lapsed kept `.webOnly` (from the
+    /// last successful fetch) and saw stale numbers with no way to reconnect.
+    func testAuthState_ExpiredWebSessionNeedsAttention() async {
+        configureFallback()
+        mockKeychainService.stubbedCredentials = nil
+        await sut.fetchUsage()
+        XCTAssertEqual(sut.authState, .webOnly, "precondition: the fallback was carrying us")
+
+        mockAPIService.stubbedWebError = APIError.unauthorized
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .failed(.webSessionExpired))
+        XCTAssertTrue(sut.authState.needsAttention)
+        XCTAssertEqual(sut.error as? AppError, .webSessionExpired,
+                       "the fix is signing in to claude.ai, not logging in to Claude Code")
+    }
+
+    /// A claude.ai outage or offline Mac is not a lost session: no connect prompt for it.
+    func testAuthState_TransientFallbackFailureStaysWebOnly() async {
+        configureFallback()
+        mockKeychainService.stubbedCredentials = nil
+        mockAPIService.stubbedWebError = APIError.networkError(URLError(.notConnectedToInternet))
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .webOnly)
+        XCTAssertEqual(sut.error as? AppError, .networkUnavailable)
+    }
+
     /// A Keychain item that exists but can't be parsed is not "never logged in".
     func testUnreadableCredentials_AreNotReportedAsMissing() async {
         mockKeychainService.stubbedCredentialsError = KeychainError.invalidItemFormat

@@ -47,6 +47,13 @@ enum Constants {
         static let maxCooldownDuration: TimeInterval = 600
         static let stalenessThreshold: TimeInterval = 30
         static let manualRefreshDebounce: TimeInterval = 5
+
+        /// Cooldown to honour for a 429. A missing header falls back to the default; a zero or
+        /// negative one is floored at the request spacing, since a 0 s timer spins the run loop.
+        static func cooldown(retryAfter: TimeInterval?) -> TimeInterval {
+            let requested = retryAfter ?? defaultCooldownDuration
+            return min(max(requested, minimumRequestInterval), maxCooldownDuration)
+        }
     }
 
     // MARK: - Retry Configuration

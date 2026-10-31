@@ -60,11 +60,14 @@ class UsageManager: ObservableObject {
     private let apiService: APIServiceProtocol
     private let keychainService: KeychainServiceProtocol
     private let cacheManager: CacheManagerProtocol
-    private var isFetching: Bool = false
 
     /// The CLI's credentials as last read, and when. Re-read once stale, once locally
     /// expired, and whenever the server rejects them.
     private var cachedCredentials: (credentials: ClaudeCredentials, readAt: Date)?
+
+    /// Why the claude.ai fallback failed on the most recent fetch; nil if it was not tried
+    /// or succeeded. Distinguishes an expired web session from "never signed in".
+    private(set) var lastFallbackError: AppError?
 
     /// While set, the primary API is known to be rate limited and is skipped in favour of
     /// the fallback, so a rate-limited request isn't spent on every tick.
@@ -102,29 +105,33 @@ class UsageManager: ObservableObject {
         print("UsageManager: Stale data invalidated, UI will show loading state")
     }
 
+    /// End the loading placeholder `invalidateStaleData` put up when no fetch replaced it
+    /// (every wake attempt was gated), showing the cache as a failed fetch would.
+    func endStaleDataPlaceholder() {
+        guard usageData == nil else { return }
+        isLoading = false
+        loadCachedData()
+    }
+
     // MARK: - Fetch Usage
 
+    /// Callers serialize fetches (AppState's fetch guard); this is not reentrant.
     /// - Parameter reloadCredentials: Read the Keychain even if a recent read is cached. For
     ///   explicit refreshes, which may follow `claude auth login` with another account.
     func fetchUsage(reloadCredentials: Bool = false) async {
-        guard !isFetching else {
-            print("UsageManager: Fetch already in progress, skipping")
-            return
-        }
-        isFetching = true
-        defer { isFetching = false }
-
         isLoading = true
-        error = nil
         lastPrimaryError = nil
+        lastFallbackError = nil
         defer { isLoading = false }
+        // `error` is left in place until this fetch resolves: clearing it up front flipped the
+        // footer to "Updated ..." for the whole retry sequence of a fetch that then failed.
 
         // The primary is rate limited and we have a working alternative: go straight to it
         // instead of spending a request just to be told 429 again.
         if shouldSkipPrimary {
             if let fallbackData = await tryWebAPIFallback() {
                 applySuccess(fallbackData, source: .webFallback)
-                authState = resolveAuthState()
+                authState = resolveAuthState(servedByFallback: true)
                 return
             }
             // The fallback is the only source inside this window and it just failed.
@@ -134,6 +141,7 @@ class UsageManager: ObservableObject {
             print("UsageManager: Fallback failed inside primary cooldown, reopening primary")
         }
 
+        var servedByFallback = false
         var localTokenLooksExpired = false
         do {
             let credentials = try await loadCredentials(reload: reloadCredentials)
@@ -159,10 +167,10 @@ class UsageManager: ObservableObject {
             primaryUnhealthyUntil = nil
             applySuccess(data, source: .primary)
         } catch {
-            await handleFetchFailure(error, localTokenLooksExpired: localTokenLooksExpired)
+            servedByFallback = await handleFetchFailure(error, localTokenLooksExpired: localTokenLooksExpired)
         }
 
-        authState = resolveAuthState()
+        authState = resolveAuthState(servedByFallback: servedByFallback)
     }
 
     private func loadCredentials(reload: Bool) async throws -> ClaudeCredentials {
@@ -178,54 +186,68 @@ class UsageManager: ObservableObject {
         return credentials
     }
 
-    /// Derive the auth state from what the primary reported and what ended up serving data.
-    private func resolveAuthState() -> AuthState {
-        let credentialProblem: AppError? = {
-            switch lastPrimaryError {
-            case .noCredentials, .invalidCredentials, .credentialsExpired,
-                 .keychainItemNotFound, .keychainReadFailed:
-                return lastPrimaryError
-            default:
-                return nil
-            }
-        }()
-
+    /// Derive the auth state from what the primary reported and what served THIS fetch.
+    /// `dataSource` is no basis: it keeps naming the last source that succeeded.
+    private func resolveAuthState(servedByFallback: Bool) -> AuthState {
         // Either the primary succeeded, or it failed for a reason unrelated to credentials
         // (rate limit, server error) - the credentials themselves are fine. This also covers
         // the skipped-primary path, where `lastPrimaryError` is nil: the window only ever arms
         // on a 429, which says nothing about whether the credentials are good.
-        guard let problem = credentialProblem else { return .cliAuthenticated }
+        guard let problem = lastPrimaryError, Self.isCredentialProblem(problem) else {
+            return .cliAuthenticated
+        }
 
-        if dataSource == .webFallback { return .webOnly }
+        if servedByFallback { return .webOnly }
+        if let fallbackError = lastFallbackError {
+            // The claude.ai session was carrying this user and has lapsed: that is what to
+            // fix. Any other fallback failure (offline, 5xx) says nothing against the session.
+            return fallbackError == .webSessionExpired ? .failed(.webSessionExpired) : .webOnly
+        }
         if problem == .noCredentials { return .needsLogin }
         return .failed(problem)
     }
 
+    private static func isCredentialProblem(_ error: AppError) -> Bool {
+        switch error {
+        case .noCredentials, .invalidCredentials, .credentialsExpired,
+             .keychainItemNotFound, .keychainReadFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Failure Handling
 
-    private func handleFetchFailure(_ rawError: Error, localTokenLooksExpired: Bool) async {
+    /// - Returns: Whether the web fallback served data in the primary's place.
+    private func handleFetchFailure(_ rawError: Error, localTokenLooksExpired: Bool) async -> Bool {
         let appError = Self.normalize(rawError, localTokenLooksExpired: localTokenLooksExpired)
         lastPrimaryError = appError
 
         if let fallbackData = await tryWebAPIFallback() {
             // Only park the primary once we know a working alternative exists.
             if case .rateLimited(let retryAfter) = appError {
-                let cooldown = min(
-                    retryAfter ?? Constants.RateLimit.defaultCooldownDuration,
-                    Constants.RateLimit.maxCooldownDuration
+                primaryUnhealthyUntil = Date().addingTimeInterval(
+                    Constants.RateLimit.cooldown(retryAfter: retryAfter)
                 )
-                primaryUnhealthyUntil = Date().addingTimeInterval(cooldown)
             }
             applySuccess(fallbackData, source: .webFallback)
             print("UsageManager: Web API fallback succeeded after \(appError)")
-            return
+            return true
         }
 
-        self.error = appError
+        // A web-only user has no CLI credentials by design; "log in to Claude Code" would
+        // send them to the wrong fix. Report what actually stopped the fallback instead.
+        if Self.isCredentialProblem(appError), let fallbackError = lastFallbackError {
+            self.error = fallbackError
+        } else {
+            self.error = appError
+        }
         print("UsageManager: Fetch failed - \(appError)")
 
         // Fall back to cache so the popover keeps showing the last known numbers.
         loadCachedData()
+        return false
     }
 
     /// Collapse the three error domains into one `AppError`.
@@ -250,9 +272,10 @@ class UsageManager: ObservableObject {
     }
 
     private func applySuccess(_ data: UsageData, source: DataSource) {
+        // Source first: `usageData` subscribers read it to tell fresh data from cache.
+        self.dataSource = source
         self.usageData = data
         self.error = nil
-        self.dataSource = source
         cacheManager.cacheUsageData(data)
     }
 
@@ -268,7 +291,9 @@ class UsageManager: ObservableObject {
     }
 
     private func tryWebAPIFallback() async -> UsageData? {
-        guard isWebFallbackConfigured else { return nil }
+        // Once per fetch: after a failure inside the primary's cooldown, the primary is
+        // reopened, and if it fails too the same fallback request would just fail again.
+        guard isWebFallbackConfigured, lastFallbackError == nil else { return nil }
         do {
             let (data, refreshedKey) = try await apiService.fetchUsageFromWeb(
                 sessionKey: webSessionKey,
@@ -280,6 +305,11 @@ class UsageManager: ObservableObject {
             }
             return data
         } catch {
+            if case APIError.unauthorized? = error as? APIError {
+                lastFallbackError = .webSessionExpired
+            } else {
+                lastFallbackError = Self.normalize(error, localTokenLooksExpired: false)
+            }
             print("UsageManager: Web API fallback failed - \(error)")
             return nil
         }
@@ -291,8 +321,8 @@ class UsageManager: ObservableObject {
         // Only use cache if we don't have fresher data
         guard usageData == nil else { return }
         if let cached = cacheManager.getCachedUsageData(maxAge: nil) {
-            usageData = cached
             dataSource = .cache
+            usageData = cached
         }
     }
 

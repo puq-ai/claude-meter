@@ -15,6 +15,8 @@ enum AppError: Error, LocalizedError, Equatable {
     case invalidCredentials
     case credentialsExpired
     case authenticationFailed(String)
+    /// The claude.ai session cookie was rejected; only signing in again brings it back.
+    case webSessionExpired
 
     // MARK: - Network Errors
     case networkUnavailable
@@ -49,6 +51,8 @@ enum AppError: Error, LocalizedError, Equatable {
             return "Your credentials have expired. Please re-authenticate."
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
+        case .webSessionExpired:
+            return "Your claude.ai session has expired. Reconnect to keep usage updating."
 
         case .networkUnavailable:
             return "Network is unavailable. Please check your connection."
@@ -92,6 +96,8 @@ enum AppError: Error, LocalizedError, Equatable {
         switch self {
         case .noCredentials, .invalidCredentials, .credentialsExpired:
             return "Run 'claude auth login' in Terminal to authenticate."
+        case .webSessionExpired:
+            return "Sign in to claude.ai again from the popover or Settings."
         case .networkUnavailable:
             return "Check your internet connection and try again."
         case .rateLimited:
@@ -110,6 +116,7 @@ enum AppError: Error, LocalizedError, Equatable {
         case (.noCredentials, .noCredentials),
              (.invalidCredentials, .invalidCredentials),
              (.credentialsExpired, .credentialsExpired),
+             (.webSessionExpired, .webSessionExpired),
              (.networkUnavailable, .networkUnavailable),
              (.connectionTimeout, .connectionTimeout),
              (.serverUnreachable, .serverUnreachable),
