@@ -89,9 +89,6 @@ enum Constants {
         static let throttleInterval: TimeInterval = 3600  // 1 hour
         static let hysteresisBuffer: Double = 5.0
 
-        // Default thresholds
-        static let defaultThresholds: [Int] = [75, 90, 95]
-
         // UserDefaults keys
         static let throttleTimesKey = "com.claudemeter.throttleTimes"
         static let notificationStateKey = "com.claudemeter.notificationState"
@@ -136,10 +133,8 @@ enum Constants {
 
     // MARK: - UI Dimensions
     enum UI {
-        static let menuBarIconSize: CGFloat = 18
-        static let menuBarIconLineWidth: CGFloat = 2.5
-        static let settingsMaxWidth: CGFloat = 400
         static let aboutLogoSize: CGFloat = 64
+        static let settingsMaxWidth: CGFloat = 400
     }
 
     // MARK: - Wake Recovery Configuration
@@ -147,14 +142,5 @@ enum Constants {
         static let initialDelay: TimeInterval = 2.0
         static let retryDelays: [TimeInterval] = [5, 15, 30]
         static let significantSleepDuration: TimeInterval = 300  // 5 minutes
-        static let maxRetries = 3
-    }
-
-    // MARK: - Statistics Configuration
-    enum Statistics {
-        static let storageFileName = "usage_statistics.json"
-        static let maxHistoryDays = 365
-        static let refreshInterval: TimeInterval = 300  // 5 minutes
-        static let claudeProjectsPath = "~/.claude/projects"
     }
 }
