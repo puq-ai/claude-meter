@@ -49,7 +49,9 @@ struct PopoverView: View {
                         showingSettings = false
                     }
                 })
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                // Slide only: fading AppKit-backed controls (segmented picker, toggles) over the
+                // material renders them washed-out white until the animation settles.
+                .transition(.move(edge: .trailing))
             }
         }
         .frame(width: popoverWidth, height: popoverHeight)
