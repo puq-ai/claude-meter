@@ -47,7 +47,8 @@ class CacheManager: CacheManagerProtocol {
             let jsonData = try encoder.encode(cacheEntry)
 
             let fileURL = cacheDirectory.appendingPathComponent(usageDataFile)
-            try jsonData.write(to: fileURL)
+            // Atomic: a crash mid-write must not leave a truncated file that fails to decode.
+            try jsonData.write(to: fileURL, options: .atomic)
         } catch {
             print("CacheManager: Failed to cache usage data - \(error)")
         }
