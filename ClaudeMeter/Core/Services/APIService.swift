@@ -79,6 +79,11 @@ class APIService: APIServiceProtocol {
             let config = URLSessionConfiguration.default
             config.timeoutIntervalForRequest = Constants.API.requestTimeout
             config.timeoutIntervalForResource = Constants.API.resourceTimeout
+            // Every request carries its credentials explicitly. A shared, disk-backed cookie
+            // store only let a `sessionKey` from an earlier account outlive sign-out and
+            // come back as a "rotated" key that overwrote the current one.
+            config.httpCookieStorage = nil
+            config.httpShouldSetCookies = false
             self.session = URLSession(configuration: config)
         }
         self.retryConfig = retryConfig
@@ -305,21 +310,13 @@ class APIService: APIServiceProtocol {
         return pairs.joined(separator: "; ")
     }
 
-    /// Read the rotated `sessionKey` the server handed back.
+    /// Read the rotated `sessionKey` from this response's own `Set-Cookie` headers.
     ///
     /// Deliberately not hand-parsing `Set-Cookie`: Darwin comma-joins repeated headers, so a
     /// naive split silently drops the key whenever `sessionKey` isn't the first cookie in the
-    /// response. Prefer the session's cookie store, which has already parsed the response,
-    /// and fall back to Foundation's header parser when the store holds nothing.
+    /// response. Foundation's parser handles the joined form. Never read a cookie store here:
+    /// a stored key may belong to an earlier session, not to this response.
     private func rotatedSessionKey(from httpResponse: HTTPURLResponse, url: URL) -> String? {
-        let name = Constants.API.sessionCookieName
-
-        if let stored = session.configuration.httpCookieStorage?
-            .cookies(for: url)?
-            .first(where: { $0.name == name })?.value {
-            return stored
-        }
-
         let headerFields = Dictionary(
             httpResponse.allHeaderFields.compactMap { key, value -> (String, String)? in
                 guard let key = key as? String, let value = value as? String else { return nil }
@@ -328,7 +325,7 @@ class APIService: APIServiceProtocol {
             uniquingKeysWith: { first, _ in first }
         )
         return HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
-            .first(where: { $0.name == name })?.value
+            .first(where: { $0.name == Constants.API.sessionCookieName })?.value
     }
 
     #if DEBUG
