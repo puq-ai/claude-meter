@@ -199,6 +199,10 @@ class APIService: APIServiceProtocol {
                     throw error
                 }
             } catch {
+                // Cancellation is not a network failure: stop instead of retrying.
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    throw error
+                }
                 // URLSession errors (network issues)
                 lastError = APIError.networkError(error)
                 let delay = retryConfig.delay(for: attempt)
