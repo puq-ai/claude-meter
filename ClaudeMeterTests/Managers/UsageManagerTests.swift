@@ -455,8 +455,8 @@ final class LimitsSchemaTests: XCTestCase {
     }
 
     func testLimits_PercentIsNotFractionNormalized() throws {
-        // UsageWindow rescales values in (0, 1) as fractions. `limits[].percent` is already
-        // a percentage, so 0.5 must stay 0.5% and not become 50%.
+        // `limits[].percent` is already a percentage, so 0.5 must stay 0.5% and not
+        // become 50%.
         let usageData = try decode("""
         {
             "limits": [

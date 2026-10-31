@@ -129,28 +129,6 @@ enum TestData {
         return json.data(using: .utf8)!
     }
 
-    /// JSON with 0-1 scale utilization values (API format change)
-    static func makeUsageDataJSON_FractionalScale() -> Data {
-        let resetDate = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        let json = """
-        {
-            "five_hour": {
-                "utilization": 0.50,
-                "resets_at": "\(resetDate)"
-            },
-            "seven_day": {
-                "utilization": 0.30,
-                "resets_at": "\(resetDate)"
-            },
-            "seven_day_opus": {
-                "utilization": 0.25,
-                "resets_at": "\(resetDate)"
-            }
-        }
-        """
-        return json.data(using: .utf8)!
-    }
-
     /// Trimmed copy of a real `/api/oauth/usage` response captured 2026-09-11, after the
     /// API moved every limit into the `limits` array. Note that all legacy per-model keys
     /// come back null and the scoped limit is named by the server, not by a fixed key.

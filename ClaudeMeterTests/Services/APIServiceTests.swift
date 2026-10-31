@@ -49,13 +49,13 @@ class APIServiceTests: XCTestCase {
         XCTAssertEqual(data.fiveHour?.utilization, 45.0)
     }
     
-    func testFetchUsage_NormalizedUtilization() async throws {
-        // Arrange - API returns 0-1 scale values
+    /// Regression: values in (0, 1) used to be "normalized" as fractions, so a real 0.45%
+    /// rendered as 45%. The API reports percentages; they must be taken verbatim.
+    func testFetchUsage_SubOnePercentUtilizationIsNotRescaled() async throws {
         let json = """
         {
             "five_hour": { "utilization": 0.45, "resets_at": "2024-01-01T12:00:00Z" },
-            "seven_day": { "utilization": 0.20, "resets_at": "2024-01-07T12:00:00Z" },
-            "seven_day_sonnet": { "utilization": 0.0, "resets_at": "2024-01-07T12:00:00Z" }
+            "seven_day": { "utilization": 20.0, "resets_at": "2024-01-07T12:00:00Z" }
         }
         """
         MockURLProtocol.requestHandler = { request in
@@ -63,14 +63,10 @@ class APIServiceTests: XCTestCase {
             return (response, json.data(using: .utf8)!)
         }
 
-        // Act
         let data = try await sut.fetchUsage(token: "test-token")
 
-        // Assert - values should be normalized to 0-100
-        XCTAssertEqual(data.fiveHour?.utilization, 45.0)
+        XCTAssertEqual(data.fiveHour?.utilization, 0.45)
         XCTAssertEqual(data.sevenDay?.utilization, 20.0)
-        XCTAssertNil(data.sevenDayOpus) // seven_day_opus not in JSON
-        XCTAssertEqual(data.sevenDaySonnet?.utilization, 0.0) // 0.0 stays as 0.0
     }
 
     func testFetchUsage_Unauthorized() async {

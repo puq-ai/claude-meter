@@ -489,7 +489,9 @@ private extension String {
 // MARK: - Usage Window
 
 struct UsageWindow: Codable, Equatable {
-    let utilization: Double      // Always 0-100 percentage
+    /// Always a 0-100 percentage, taken verbatim. A value below 1 is a genuinely small
+    /// usage (0.5 means 0.5%), never a fraction to rescale.
+    let utilization: Double
     let resetsAt: Date?          // ISO 8601
 
     enum CodingKeys: String, CodingKey {
@@ -498,17 +500,8 @@ struct UsageWindow: Codable, Equatable {
     }
 
     init(utilization: Double, resetsAt: Date? = nil) {
-        // Normalize: if value is in 0-1 range (exclusive of 0), treat as fraction
-        self.utilization = utilization > 0 && utilization < 1.0 ? utilization * 100.0 : utilization
+        self.utilization = utilization
         self.resetsAt = resetsAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let rawUtilization = try container.decode(Double.self, forKey: .utilization)
-        resetsAt = try container.decodeIfPresent(Date.self, forKey: .resetsAt)
-        // Normalize: if value is in 0-1 range (exclusive of 0), treat as fraction
-        utilization = rawUtilization > 0 && rawUtilization < 1.0 ? rawUtilization * 100.0 : rawUtilization
     }
 }
 
