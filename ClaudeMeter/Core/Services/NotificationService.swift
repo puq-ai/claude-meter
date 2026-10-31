@@ -15,7 +15,6 @@ enum NotificationType: String, CaseIterable {
     case warning90 = "warning_90"
     case critical95 = "critical_95"
     case limitReset = "limit_reset"
-    case credentialExpiring = "credential_expiring"
 
     var title: String {
         switch self {
@@ -23,7 +22,6 @@ enum NotificationType: String, CaseIterable {
         case .warning90: return "High Usage Alert"
         case .critical95: return "Critical Usage"
         case .limitReset: return "Usage Reset"
-        case .credentialExpiring: return "Credentials Expiring"
         }
     }
 
@@ -32,7 +30,7 @@ enum NotificationType: String, CaseIterable {
         case .warning75: return 75
         case .warning90: return 90
         case .critical95: return 95
-        case .limitReset, .credentialExpiring: return nil
+        case .limitReset: return nil
         }
     }
 
@@ -250,23 +248,6 @@ class NotificationService: NotificationServiceProtocol {
         }
     }
 
-    private func sendUsageNotification(type: NotificationType, windowTitle: String, usage: Double) {
-        let body: String
-        switch type {
-        case .warning75:
-            body = "\(windowTitle) usage at \(Int(usage))%. Consider slowing down."
-        case .warning90:
-            body = "\(windowTitle) usage at \(Int(usage))%. You're almost at the limit."
-        case .critical95:
-            body = "\(windowTitle) usage at \(Int(usage))%! Limit approaching."
-        default:
-            body = "\(windowTitle) usage at \(Int(usage))%"
-        }
-
-        scheduleNotification(title: type.title, body: body, identifier: type.rawValue)
-        recordNotification(type: type)
-    }
-
     private func sendResetNotification(windowTitles: [String]) {
         guard shouldSendNotification(type: .limitReset), !windowTitles.isEmpty else { return }
 
@@ -281,22 +262,6 @@ class NotificationService: NotificationServiceProtocol {
             identifier: "reset_aggregated"
         )
         recordNotification(type: .limitReset)
-    }
-
-    // MARK: - Credential Notifications
-
-    func notifyCredentialExpiring(in timeInterval: TimeInterval) {
-        guard shouldSendNotification(type: .credentialExpiring) else { return }
-
-        let minutes = Int(timeInterval / 60)
-        let body = "Your Claude credentials will expire in \(minutes) minutes. Please re-authenticate."
-
-        scheduleNotification(
-            title: NotificationType.credentialExpiring.title,
-            body: body,
-            identifier: NotificationType.credentialExpiring.rawValue
-        )
-        recordNotification(type: .credentialExpiring)
     }
 
     // MARK: - Throttling
@@ -346,13 +311,5 @@ class NotificationService: NotificationServiceProtocol {
                 lastNotificationTimes[type] = Date(timeIntervalSince1970: timestamp)
             }
         }
-    }
-
-    /// Reset all notification state (e.g., on app restart or user request)
-    func resetNotificationState() {
-        notifiedThresholds.removeAll()
-        lastNotificationTimes.removeAll()
-        saveNotificationState()
-        saveThrottleTimes()
     }
 }

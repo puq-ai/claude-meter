@@ -17,7 +17,6 @@ class MockNotificationService: NotificationServiceProtocol {
     var checkPermissionStatusCallCount = 0
     var scheduleNotificationCallCount = 0
     var checkAndNotifyCallCount = 0
-    var resetNotificationStateCallCount = 0
 
     // MARK: - Captured Data
     var scheduledNotifications: [(title: String, body: String, identifier: String?)] = []
@@ -53,11 +52,6 @@ class MockNotificationService: NotificationServiceProtocol {
         lastThresholds = thresholds
     }
 
-    func resetNotificationState() {
-        resetNotificationStateCallCount += 1
-        scheduledNotifications.removeAll()
-    }
-
     // MARK: - Reset
 
     func reset() {
@@ -65,7 +59,6 @@ class MockNotificationService: NotificationServiceProtocol {
         checkPermissionStatusCallCount = 0
         scheduleNotificationCallCount = 0
         checkAndNotifyCallCount = 0
-        resetNotificationStateCallCount = 0
         scheduledNotifications.removeAll()
         lastUsageData = nil
         lastPreviousUsageData = nil
