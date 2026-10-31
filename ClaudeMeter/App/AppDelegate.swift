@@ -31,25 +31,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Lifecycle Notifications
 
+    /// Only sleep/wake matters. App activation is deliberately NOT tracked: a menu bar
+    /// meter is on screen whether or not the app is frontmost, so slowing polling down
+    /// when it resigns active left the menu bar reading up to 15 minutes stale.
     private func registerForLifecycleNotifications() {
-        // App became active (foreground)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.appState?.onAppBecameActive()
-        }
-
-        // App resigned active (background)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.appState?.onAppResignedActive()
-        }
-
         // System will sleep
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification,

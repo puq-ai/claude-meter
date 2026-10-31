@@ -16,7 +16,6 @@ class PollingManager {
         var defaultInterval: TimeInterval = Constants.Polling.defaultInterval
         var minInterval: TimeInterval = Constants.Polling.minInterval
         var maxInterval: TimeInterval = Constants.Polling.maxInterval
-        var backgroundInterval: TimeInterval = Constants.Polling.backgroundInterval
 
         // Adaptive polling thresholds
         var highUsageThreshold: Double = Constants.Polling.highUsageThreshold
@@ -32,7 +31,6 @@ class PollingManager {
         case idle
         case running
         case paused
-        case background
     }
 
     private(set) var config: Config
@@ -96,31 +94,9 @@ class PollingManager {
     }
 
     func resume() {
-        guard state == .paused || state == .background else { return }
+        guard state == .paused else { return }
         state = .running
         scheduleTimer(interval: currentInterval)
-    }
-
-    /// Called when app becomes active (foreground)
-    func onAppBecameActive() {
-        guard state == .background else { return }
-        state = .running
-        // Use calculated interval based on last known usage
-        let newInterval = calculateInterval(for: lastUsage)
-        scheduleTimer(interval: newInterval)
-
-        // Immediate refresh when coming to foreground (performRefresh handles its own fetch guard)
-        Task {
-            guard canMakeRequest(reason: "app_became_active") else { return }
-            await onTick?()
-        }
-    }
-
-    /// Called when app goes to background
-    func onAppResignedActive() {
-        guard state == .running else { return }
-        state = .background
-        scheduleTimer(interval: config.backgroundInterval)
     }
 
     /// Update polling interval based on usage
@@ -360,10 +336,6 @@ extension PollingManager {
 
     var isPaused: Bool {
         return state == .paused
-    }
-
-    var isInBackground: Bool {
-        return state == .background
     }
 
     var currentPollingInterval: TimeInterval {

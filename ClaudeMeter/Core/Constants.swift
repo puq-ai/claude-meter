@@ -63,7 +63,6 @@ enum Constants {
         static let defaultInterval: TimeInterval = 30
         static let minInterval: TimeInterval = 30
         static let maxInterval: TimeInterval = 300
-        static let backgroundInterval: TimeInterval = 900  // 15 minutes
 
         // Adaptive polling thresholds
         static let highUsageThreshold: Double = 75

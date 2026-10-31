@@ -283,16 +283,6 @@ class AppState: ObservableObject {
         pollingManager.updateForUsage(maxUsage)
     }
 
-    // MARK: - App Lifecycle
-
-    func onAppBecameActive() {
-        pollingManager.onAppBecameActive()
-    }
-
-    func onAppResignedActive() {
-        pollingManager.onAppResignedActive()
-    }
-
     // MARK: - Sleep/Wake Management
 
     func onSystemWillSleep() {
