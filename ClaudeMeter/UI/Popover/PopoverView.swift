@@ -199,9 +199,8 @@ struct PopoverView: View {
             }
             .padding(.horizontal, contentPadding)
             .padding(.vertical, 8)
-            .background(ScrollBarHider())
         }
-        .scrollIndicators(.hidden)
+        .scrollIndicators(.never)
     }
 
     // MARK: - Error View
@@ -482,29 +481,6 @@ struct PopoverView: View {
         }
         .buttonStyle(.plain)
         .help("Visit puq.ai")
-    }
-}
-
-// MARK: - ScrollBar Hider
-
-struct ScrollBarHider: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            Self.hideScrollBars(for: view)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        Self.hideScrollBars(for: nsView)
-    }
-
-    private static func hideScrollBars(for view: NSView) {
-        guard let scrollView = view.enclosingScrollView else { return }
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.scrollerStyle = .overlay
     }
 }
 

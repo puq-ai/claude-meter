@@ -23,7 +23,6 @@ struct AppearanceSettingsView: View {
                     }
                     .pickerStyle(.radioGroup)
                 }
-                .background(ScrollBarHider())
 
                 Section(header: Text("Color Scheme")) {
                     Picker("Theme", selection: $appState.settings.colorScheme) {
@@ -35,7 +34,7 @@ struct AppearanceSettingsView: View {
                 }
             }
             .formStyle(.grouped)
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
         }
     }
 }
