@@ -168,6 +168,7 @@ class APIService: APIServiceProtocol {
         var lastError: Error = APIError.unknown(NSError(domain: "Unknown", code: -1))
 
         for attempt in 0..<retryConfig.maxRetries {
+            let delay: TimeInterval
             do {
                 return try await fetchUsage(token: token)
             } catch let error as APIError {
@@ -180,19 +181,11 @@ class APIService: APIServiceProtocol {
 
                 case .serverError(let code) where code >= 500:
                     // 5xx: Wait longer before retry
-                    let delay = max(retryConfig.delay(for: attempt), Constants.Retry.serverErrorMinDelay)
-                    print("APIService: Server error \(code), waiting \(delay)s before retry \(attempt + 1)")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    delay = max(retryConfig.delay(for: attempt), Constants.Retry.serverErrorMinDelay)
 
                 case .unauthorized:
                     // Don't retry auth errors
                     throw error
-
-                case .networkError:
-                    // Network errors: short delay and retry
-                    let delay = retryConfig.delay(for: attempt)
-                    print("APIService: Network error, waiting \(delay)s before retry \(attempt + 1)")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
                 default:
                     // Other errors: don't retry
@@ -205,10 +198,14 @@ class APIService: APIServiceProtocol {
                 }
                 // URLSession errors (network issues)
                 lastError = APIError.networkError(error)
-                let delay = retryConfig.delay(for: attempt)
-                print("APIService: Request failed, waiting \(delay)s before retry \(attempt + 1)")
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                delay = retryConfig.delay(for: attempt)
             }
+
+            // No wait after the final attempt - it only held the fetch (and the spinner)
+            // open, up to 30 s on a 5xx, before reporting a result already known.
+            guard attempt < retryConfig.maxRetries - 1 else { break }
+            print("APIService: \(lastError), waiting \(delay)s before retry \(attempt + 1)")
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
 
         throw APIError.maxRetriesExceeded(lastError: lastError)
