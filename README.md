@@ -46,7 +46,7 @@ xcodebuild -scheme ClaudeMeter -configuration Release build
 open ClaudeMeter.xcodeproj
 ```
 
-To build a release DMG: `./scripts/create-dmg.sh 1.3.0`
+To build a release DMG: `./scripts/create-dmg.sh 1.4.0`
 
 ## Configuration
 
