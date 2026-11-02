@@ -1,6 +1,6 @@
 # ClaudeMeter
 
-A macOS menu bar utility to monitor your Anthropic Claude Code usage, token consumption, and limits in real-time.
+A macOS menu bar utility that shows your Claude usage limits — the 5-hour session, the 7-day window, and per-model limits — at a glance, with alerts before you hit them.
 
 <p align="center">
   <img src="screenshot.png" alt="Light Mode" width="45%" />
@@ -9,34 +9,35 @@ A macOS menu bar utility to monitor your Anthropic Claude Code usage, token cons
 
 ## Features
 
-- **Real-time Monitoring**: Tracks 5-hour, 7-day, and per-model weekly limits reported by the API
-- **Menu Bar Widget**: Shows current utilization at a glance (Icon, Compact, or Detailed modes)
-- **Notifications**: Configurable alerts when approaching limits (75%, 90%, 95%)
-- **Smart Polling**: Adaptive refresh rate based on activity and usage level
-- **Offline Caching**: View last known usage even when offline
-- **Native macOS**: Built with SwiftUI for minimal resource footprint
+- **Every limit the server reports**: 5-hour and 7-day windows plus per-model weekly limits, each with its reset countdown
+- **Menu bar widget**: Current 5-hour usage (7-day on plans without a 5-hour window) as a ring, ring + percentage, or `5h | 7d` text
+- **Usage breakdown**: What is consuming your 7-day limit (Claude Code, chats, Cowork), and extra usage spend
+- **Notifications**: Alerts at 75%, 90% and 95% per limit, plus a notice when a limit resets
+- **claude.ai fallback**: Sign in to claude.ai inside the app (or paste a session key) and usage keeps updating when the Claude Code API is rate limited or unavailable — or when you don't use the CLI at all
+- **Smart polling**: Polls faster as a limit gets close, refreshes right after a reset, honours rate limits, and recovers after sleep or going offline
+- **Offline caching**: Shows the last known usage when nothing can be fetched
+- **Native macOS**: SwiftUI, no Electron, credentials stay in your Keychain
 
 ## Requirements
 
-- macOS 13.0 (Ventura) or later
+- macOS 14.0 (Sonoma) or later
 - Xcode 15.0+ (for building from source)
-- Claude Code CLI authenticated (`claude login`)
+- Claude Code CLI authenticated (`claude auth login`)
 
 ## Installation
 
 ### Download Release
 
-1. Download the latest release from the [Releases](https://github.com/puq-ai/claude-meter/releases) page
-2. Unzip `ClaudeMeter.app`
-3. Drag to your Applications folder
-4. Launch the app
+1. Download `ClaudeMeter-<version>.dmg` from the [Releases](https://github.com/puq-ai/claude-meter/releases) page
+2. Open the DMG and drag `ClaudeMeter.app` to Applications
+3. Launch the app; it appears in the menu bar
 
 ### Build from Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/puq-ai/claude-meter.git
-cd ClaudeMeter
+cd claude-meter
 
 # Build the app
 xcodebuild -scheme ClaudeMeter -configuration Release build
@@ -45,38 +46,47 @@ xcodebuild -scheme ClaudeMeter -configuration Release build
 open ClaudeMeter.xcodeproj
 ```
 
+To build a release DMG: `./scripts/create-dmg.sh 1.4.0`
+
 ## Configuration
 
-ClaudeMeter uses credentials stored by the Claude Code CLI. Ensure you've authenticated:
+ClaudeMeter reads the credentials the Claude Code CLI stores in your Keychain. Sign in once:
 
 ```bash
-claude login
+claude auth login
 ```
 
-Once logged in, ClaudeMeter will automatically detect your session.
+ClaudeMeter picks the session up automatically — no restart needed. With no CLI credentials, the popover offers both options: **Sign in with claude.ai** or **Use the Claude Code CLI**.
+
+### claude.ai Fallback
+
+Optional. In **Settings → General → claude.ai Fallback**, choose **Sign In…** to sign in to claude.ai in an app window. The session is stored in your Keychain and used whenever the Claude Code API can't be reached.
+
+If the in-app sign-in doesn't work (passkeys and some identity providers refuse embedded web views), sign in to claude.ai in your browser, copy the `sessionKey` cookie, and paste it under **Enter a session key manually**. The organization is found for you.
 
 ### Settings
 
-Access settings from the menu bar popover:
+Open settings with the gear icon in the popover:
 
-- **General**: Launch at login, dock visibility, refresh interval
-- **Appearance**: Display mode (Icon/Compact/Detailed), color scheme
-- **Notifications**: Enable/disable alerts, configure thresholds
-- **About**: App version and information
+- **General**: Launch at login, model limits / usage breakdown / extra usage visibility, Dock icon, refresh interval (30 s – 5 min), claude.ai fallback
+- **Appearance**: Menu bar display (Icon Only / Compact / Detailed), color scheme (Auto / Light / Dark)
+- **Notifications**: Enable alerts, choose the 75% / 90% / 95% thresholds
+- **About**: Version information
 
 ## Architecture
 
 ```
 ClaudeMeter/
+├── App/                         # App entry point, AppDelegate, AppState
 ├── Core/
 │   ├── Constants.swift          # Centralized configuration
-│   ├── DependencyContainer.swift # Dependency injection
 │   ├── Protocols/               # Service abstractions
 │   ├── Models/                  # Data models
 │   ├── Services/                # API, Keychain, Notifications
-│   └── Managers/                # Business logic
+│   └── Managers/                # Usage, polling, cache
 ├── UI/
-│   ├── MenuBar/                 # Status bar components
+│   ├── Auth/                    # Connect screen, claude.ai sign-in
+│   ├── MenuBar/                 # Status bar item
 │   ├── Popover/                 # Main UI views
 │   ├── Settings/                # Settings views
 │   └── Components/              # Reusable components
@@ -85,10 +95,11 @@ ClaudeMeter/
 
 ### Key Components
 
-- **APIService**: Handles communication with Anthropic API with retry logic
-- **KeychainService**: Reads Claude Code credentials from system keychain
-- **NotificationService**: Manages system notifications with throttling
-- **PollingManager**: Adaptive polling based on usage levels
+- **APIService**: Claude Code usage API and the claude.ai fallback, with retry on server and network errors
+- **KeychainService**: Reads the Claude Code CLI credentials; stores the claude.ai session
+- **UsageManager**: Fetches usage, falls back to claude.ai or the cache, and tracks auth state
+- **PollingManager**: Adaptive polling, rate-limit cooldown, circuit breaker, sleep/wake and network recovery
+- **NotificationService**: Threshold and limit-reset alerts, deduplicated per limit
 - **CacheManager**: Offline caching of usage data
 
 ## Contributing

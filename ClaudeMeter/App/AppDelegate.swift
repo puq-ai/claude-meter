@@ -13,77 +13,28 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItemController: StatusItemController?
     private(set) var appState: AppState?
-    private var fileWatcher: FileWatcherService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Initialize AppState
+        // AppState applies persisted settings (dock visibility included) as it initializes.
         let state = AppState()
         appState = state
 
-        // Apply initial dock visibility setting
-        applyDockVisibility()
-
-        // Setup status item controller
         statusItemController = StatusItemController(appState: state)
 
-        // Setup file watcher for credential changes
-        setupFileWatcher()
-
-        // Register for app lifecycle notifications
         registerForLifecycleNotifications()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Cleanup
-        fileWatcher?.stopWatching()
         appState?.pollingManager.stopNetworkMonitor()
         appState?.pollingManager.stop()
     }
 
-    // MARK: - Dock Visibility
-
-    private func applyDockVisibility() {
-        guard let appState = appState else { return }
-        if appState.settings.showInDock {
-            NSApp.setActivationPolicy(.regular)
-        } else {
-            NSApp.setActivationPolicy(.accessory)
-        }
-    }
-
-    // MARK: - File Watcher
-
-    private func setupFileWatcher() {
-        fileWatcher = FileWatcherService()
-        fileWatcher?.startWatching { [weak self] in
-            // Credential file changed, refresh data
-            Task {
-                await self?.appState?.refresh()
-            }
-        }
-    }
-
     // MARK: - Lifecycle Notifications
 
+    /// Only sleep/wake matters. App activation is deliberately NOT tracked: a menu bar
+    /// meter is on screen whether or not the app is frontmost, so slowing polling down
+    /// when it resigns active left the menu bar reading up to 15 minutes stale.
     private func registerForLifecycleNotifications() {
-        // App became active (foreground)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.appState?.onAppBecameActive()
-        }
-
-        // App resigned active (background)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.appState?.onAppResignedActive()
-        }
-
         // System will sleep
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification,

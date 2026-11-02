@@ -79,6 +79,11 @@ class APIService: APIServiceProtocol {
             let config = URLSessionConfiguration.default
             config.timeoutIntervalForRequest = Constants.API.requestTimeout
             config.timeoutIntervalForResource = Constants.API.resourceTimeout
+            // Every request carries its credentials explicitly. A shared, disk-backed cookie
+            // store only let a `sessionKey` from an earlier account outlive sign-out and
+            // come back as a "rotated" key that overwrote the current one.
+            config.httpCookieStorage = nil
+            config.httpShouldSetCookies = false
             self.session = URLSession(configuration: config)
         }
         self.retryConfig = retryConfig
@@ -94,6 +99,27 @@ class APIService: APIServiceProtocol {
             }
         }
     }
+
+    /// Decoder for both usage endpoints. The API returns ISO 8601 dates with fractional
+    /// seconds (e.g. "2026-02-19T07:00:00.125129+00:00"), which the built-in `.iso8601`
+    /// strategy does NOT support. Built once: formatters are expensive and thread-safe.
+    static let usageDecoder: JSONDecoder = {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let whole = ISO8601DateFormatter()
+        whole.formatOptions = [.withInternetDateTime]
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            if let date = fractional.date(from: dateString) ?? whole.date(from: dateString) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
+        }
+        return decoder
+    }()
 
     // MARK: - Methods
 
@@ -120,27 +146,7 @@ class APIService: APIServiceProtocol {
         switch httpResponse.statusCode {
         case 200:
             do {
-                let decoder = JSONDecoder()
-                // The API returns ISO 8601 dates with fractional seconds
-                // (e.g. "2026-02-19T07:00:00.125129+00:00") which the built-in
-                // .iso8601 strategy does NOT support. Use a custom formatter.
-                let isoFormatter = ISO8601DateFormatter()
-                isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                decoder.dateDecodingStrategy = .custom { decoder in
-                    let container = try decoder.singleValueContainer()
-                    let dateString = try container.decode(String.self)
-                    if let date = isoFormatter.date(from: dateString) {
-                        return date
-                    }
-                    // Fallback: try without fractional seconds
-                    let fallbackFormatter = ISO8601DateFormatter()
-                    fallbackFormatter.formatOptions = [.withInternetDateTime]
-                    if let date = fallbackFormatter.date(from: dateString) {
-                        return date
-                    }
-                    throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
-                }
-                return try decoder.decode(UsageData.self, from: data)
+                return try Self.usageDecoder.decode(UsageData.self, from: data)
             } catch {
                 print("APIService: Decoding error: \(error)")
                 throw APIError.decodingError
@@ -162,6 +168,7 @@ class APIService: APIServiceProtocol {
         var lastError: Error = APIError.unknown(NSError(domain: "Unknown", code: -1))
 
         for attempt in 0..<retryConfig.maxRetries {
+            let delay: TimeInterval
             do {
                 return try await fetchUsage(token: token)
             } catch let error as APIError {
@@ -174,43 +181,34 @@ class APIService: APIServiceProtocol {
 
                 case .serverError(let code) where code >= 500:
                     // 5xx: Wait longer before retry
-                    let delay = max(retryConfig.delay(for: attempt), Constants.Retry.serverErrorMinDelay)
-                    print("APIService: Server error \(code), waiting \(delay)s before retry \(attempt + 1)")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    delay = max(retryConfig.delay(for: attempt), Constants.Retry.serverErrorMinDelay)
 
                 case .unauthorized:
                     // Don't retry auth errors
                     throw error
-
-                case .networkError:
-                    // Network errors: short delay and retry
-                    let delay = retryConfig.delay(for: attempt)
-                    print("APIService: Network error, waiting \(delay)s before retry \(attempt + 1)")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
                 default:
                     // Other errors: don't retry
                     throw error
                 }
             } catch {
+                // Cancellation is not a network failure: stop instead of retrying.
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    throw error
+                }
                 // URLSession errors (network issues)
                 lastError = APIError.networkError(error)
-                let delay = retryConfig.delay(for: attempt)
-                print("APIService: Request failed, waiting \(delay)s before retry \(attempt + 1)")
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                delay = retryConfig.delay(for: attempt)
             }
+
+            // No wait after the final attempt - it only held the fetch (and the spinner)
+            // open, up to 30 s on a 5xx, before reporting a result already known.
+            guard attempt < retryConfig.maxRetries - 1 else { break }
+            print("APIService: \(lastError), waiting \(delay)s before retry \(attempt + 1)")
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
         }
 
         throw APIError.maxRetriesExceeded(lastError: lastError)
-    }
-
-    func validateToken(_ token: String) async -> Bool {
-        do {
-            _ = try await fetchUsage(token: token)
-            return true
-        } catch {
-            return false
-        }
     }
 
     // MARK: - Web API Fallback
@@ -241,23 +239,7 @@ class APIService: APIServiceProtocol {
         switch httpResponse.statusCode {
         case 200:
             do {
-                let decoder = JSONDecoder()
-                let isoFormatter = ISO8601DateFormatter()
-                isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                decoder.dateDecodingStrategy = .custom { decoder in
-                    let container = try decoder.singleValueContainer()
-                    let dateString = try container.decode(String.self)
-                    if let date = isoFormatter.date(from: dateString) {
-                        return date
-                    }
-                    let fallbackFormatter = ISO8601DateFormatter()
-                    fallbackFormatter.formatOptions = [.withInternetDateTime]
-                    if let date = fallbackFormatter.date(from: dateString) {
-                        return date
-                    }
-                    throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(dateString)")
-                }
-                let decoded = try decoder.decode(UsageData.self, from: data)
+                let decoded = try Self.usageDecoder.decode(UsageData.self, from: data)
 
                 // Report the key only when the server actually rotated it, so a routine
                 // poll doesn't churn the stored credential.
@@ -329,21 +311,13 @@ class APIService: APIServiceProtocol {
         return pairs.joined(separator: "; ")
     }
 
-    /// Read the rotated `sessionKey` the server handed back.
+    /// Read the rotated `sessionKey` from this response's own `Set-Cookie` headers.
     ///
     /// Deliberately not hand-parsing `Set-Cookie`: Darwin comma-joins repeated headers, so a
     /// naive split silently drops the key whenever `sessionKey` isn't the first cookie in the
-    /// response. Prefer the session's cookie store, which has already parsed the response,
-    /// and fall back to Foundation's header parser when the store holds nothing.
+    /// response. Foundation's parser handles the joined form. Never read a cookie store here:
+    /// a stored key may belong to an earlier session, not to this response.
     private func rotatedSessionKey(from httpResponse: HTTPURLResponse, url: URL) -> String? {
-        let name = Constants.API.sessionCookieName
-
-        if let stored = session.configuration.httpCookieStorage?
-            .cookies(for: url)?
-            .first(where: { $0.name == name })?.value {
-            return stored
-        }
-
         let headerFields = Dictionary(
             httpResponse.allHeaderFields.compactMap { key, value -> (String, String)? in
                 guard let key = key as? String, let value = value as? String else { return nil }
@@ -352,7 +326,7 @@ class APIService: APIServiceProtocol {
             uniquingKeysWith: { first, _ in first }
         )
         return HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url)
-            .first(where: { $0.name == name })?.value
+            .first(where: { $0.name == Constants.API.sessionCookieName })?.value
     }
 
     #if DEBUG
@@ -409,17 +383,5 @@ class APIService: APIServiceProtocol {
             "Accept": Constants.API.acceptType,
             "Content-Type": Constants.API.contentType
         ]
-    }
-}
-
-// MARK: - Async Extension for easier use
-extension APIService {
-    /// Convenience method that automatically uses retry
-    func getUsage(token: String, withRetry: Bool = true) async throws -> UsageData {
-        if withRetry {
-            return try await fetchUsageWithRetry(token: token)
-        } else {
-            return try await fetchUsage(token: token)
-        }
     }
 }

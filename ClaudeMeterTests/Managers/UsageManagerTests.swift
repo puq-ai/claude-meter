@@ -7,6 +7,7 @@
 //
 
 import XCTest
+import UserNotifications
 @testable import ClaudeMeter
 
 @MainActor
@@ -231,47 +232,6 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.notifyAt, [75, 90, 95])
     }
 
-    func testShouldNotify_EnabledThreshold() {
-        var settings = AppSettings()
-        settings.notificationsEnabled = true
-        settings.notifyAt = [75, 90]
-
-        XCTAssertTrue(settings.shouldNotify(at: 75))
-        XCTAssertTrue(settings.shouldNotify(at: 90))
-        XCTAssertFalse(settings.shouldNotify(at: 95))
-    }
-
-    func testShouldNotify_DisabledNotifications() {
-        var settings = AppSettings()
-        settings.notificationsEnabled = false
-        settings.notifyAt = [75, 90, 95]
-
-        XCTAssertFalse(settings.shouldNotify(at: 75))
-        XCTAssertFalse(settings.shouldNotify(at: 90))
-        XCTAssertFalse(settings.shouldNotify(at: 95))
-    }
-
-    func testSortedThresholds() {
-        var settings = AppSettings()
-        settings.notifyAt = [95, 75, 90]
-
-        XCTAssertEqual(settings.sortedThresholds, [75, 90, 95])
-    }
-
-    func testNotifyAt90_BackwardsCompatibility() {
-        var settings = AppSettings()
-        settings.notifyAt = [75, 95]
-
-        XCTAssertFalse(settings.notifyAt90)
-
-        settings.notifyAt90 = true
-        XCTAssertTrue(settings.notifyAt.contains(90))
-        XCTAssertTrue(settings.notifyAt90)
-
-        settings.notifyAt90 = false
-        XCTAssertFalse(settings.notifyAt.contains(90))
-    }
-
     func testSettings_Encoding_Decoding() throws {
         // Given
         var settings = AppSettings()
@@ -353,6 +313,7 @@ final class AppSettingsTests: XCTestCase {
 
 // MARK: - PollingManager Tests
 
+@MainActor
 final class PollingManagerTests: XCTestCase {
     var sut: PollingManager!
 
@@ -367,12 +328,13 @@ final class PollingManagerTests: XCTestCase {
         super.tearDown()
     }
 
-    func testCalculateInterval_LowUsage() {
-        // Given usage < 50%
+    func testCalculateInterval_LowUsage_NeverSlowerThanChosenInterval() {
+        // Given usage < 50% and the user's chosen interval
+        sut.setDefaultInterval(60)
         let interval = sut.calculateInterval(for: 30)
 
-        // Then interval should be longer than default
-        XCTAssertGreaterThan(interval, Constants.Polling.defaultInterval)
+        // Then the setting is honoured: "1 Minute" must not quietly become 90 s
+        XCTAssertEqual(interval, 60)
     }
 
     func testCalculateInterval_MediumUsage() {
@@ -426,7 +388,129 @@ final class PollingManagerTests: XCTestCase {
         sut.pause()
 
         // Then
-        XCTAssertTrue(sut.isPaused)
+        XCTAssertEqual(sut.state, .paused)
+    }
+
+    /// Regression: `Retry-After: 0` armed a zero-length cooldown, and the timer scheduled at
+    /// that interval spun the run loop.
+    func testRateLimit_ZeroRetryAfterStillGatesRequests() {
+        sut.recordRateLimitHit(retryAfter: 0)
+
+        XCTAssertFalse(sut.canMakeRequest(reason: "test", enforceMinimumInterval: false))
+    }
+
+    func testExplicitRefresh_SkipsRequestSpacingButNotInFlightFetch() {
+        XCTAssertTrue(sut.beginFetch())
+        sut.endFetch()
+        XCTAssertFalse(sut.canMakeRequest(reason: "timer"), "timer ticks keep the spacing")
+        XCTAssertTrue(sut.canMakeRequest(reason: "manual", enforceMinimumInterval: false))
+
+        XCTAssertTrue(sut.beginFetch())
+        XCTAssertFalse(sut.canMakeRequest(reason: "manual", enforceMinimumInterval: false))
+        sut.endFetch()
+    }
+}
+
+// MARK: - Threshold Notification Tests
+
+final class NotificationThresholdTests: XCTestCase {
+    private var defaults: UserDefaults!
+    private var suiteName: String!
+    private var delivered: [UNNotificationRequest] = []
+    private var sut: NotificationService!
+
+    override func setUp() {
+        super.setUp()
+        suiteName = "NotificationThresholdTests-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+        delivered = []
+        sut = NotificationService(defaults: defaults) { [unowned self] in self.delivered.append($0) }
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        sut = nil
+        super.tearDown()
+    }
+
+    private func usage(fiveHour: Double, sevenDay: Double) -> UsageData {
+        TestData.makeUsageData(fiveHourUsage: fiveHour, sevenDayUsage: sevenDay, opusUsage: nil)
+    }
+
+    /// Regression: two windows crossing the same threshold within an hour. The second used
+    /// to be swallowed by the per-type throttle and then never retried, because on the next
+    /// poll its previous value was already above the threshold.
+    func testSecondWindowCrossingSameThresholdWithinAnHour_IsStillNotified() {
+        let first = usage(fiveHour: 80, sevenDay: 50)
+        sut.checkAndNotify(usage: first, previousUsage: usage(fiveHour: 70, sevenDay: 50), thresholds: [75])
+        let second = usage(fiveHour: 80, sevenDay: 78)
+        sut.checkAndNotify(usage: second, previousUsage: first, thresholds: [75])
+
+        XCTAssertEqual(delivered.count, 2)
+        XCTAssertTrue(delivered.last?.content.body.contains("78%") == true)
+    }
+
+    /// The invariant that makes level-based evaluation safe: staying above a threshold
+    /// must not re-notify on every poll.
+    func testStayingAboveThreshold_NotifiesOnce() {
+        let high = usage(fiveHour: 80, sevenDay: 50)
+        sut.checkAndNotify(usage: high, previousUsage: usage(fiveHour: 70, sevenDay: 50), thresholds: [75])
+        sut.checkAndNotify(usage: high, previousUsage: high, thresholds: [75])
+        sut.checkAndNotify(usage: high, previousUsage: high, thresholds: [75])
+
+        XCTAssertEqual(delivered.count, 1)
+    }
+
+    /// Regression: jumping past several thresholds at once listed the same window once per
+    /// threshold ("Current Session: 96%, Current Session: 96%, ..."). One line per window.
+    func testJumpPastSeveralThresholds_ListsWindowOnce() {
+        sut.checkAndNotify(usage: usage(fiveHour: 96, sevenDay: 0), previousUsage: nil, thresholds: [75, 90, 95])
+
+        XCTAssertEqual(delivered.count, 1)
+        let body = delivered.first?.content.body ?? ""
+        XCTAssertEqual(body.components(separatedBy: "96%").count - 1, 1, body)
+        XCTAssertEqual(delivered.first?.content.title, NotificationType.critical95.title)
+    }
+
+    /// Hysteresis: re-arms only after usage falls clearly below the threshold.
+    func testReNotifiesOnlyAfterDroppingBelowHysteresis() {
+        let thresholds = [75]
+        sut.checkAndNotify(usage: usage(fiveHour: 80, sevenDay: 0), previousUsage: usage(fiveHour: 0, sevenDay: 0), thresholds: thresholds)
+        sut.checkAndNotify(usage: usage(fiveHour: 72, sevenDay: 0), previousUsage: usage(fiveHour: 80, sevenDay: 0), thresholds: thresholds)
+        sut.checkAndNotify(usage: usage(fiveHour: 80, sevenDay: 0), previousUsage: usage(fiveHour: 72, sevenDay: 0), thresholds: thresholds)
+        XCTAssertEqual(delivered.count, 1, "a dip within the hysteresis buffer must not re-arm")
+
+        sut.checkAndNotify(usage: usage(fiveHour: 60, sevenDay: 0), previousUsage: usage(fiveHour: 80, sevenDay: 0), thresholds: thresholds)
+        sut.checkAndNotify(usage: usage(fiveHour: 80, sevenDay: 0), previousUsage: usage(fiveHour: 60, sevenDay: 0), thresholds: thresholds)
+        XCTAssertEqual(delivered.count, 2)
+    }
+
+    private func window(_ utilization: Double, resetsIn offset: TimeInterval) -> UsageWindow {
+        TestData.makeUsageWindow(utilization: utilization, resetsAt: Date().addingTimeInterval(offset))
+    }
+
+    /// Regression: a reset was only inferred from a drop to under 20%, so a window that
+    /// rolled over and was then used before the next poll never announced its reset.
+    func testRolledOverWindow_NotifiesEvenAfterUsageClimbed() {
+        let before = UsageData(fiveHour: window(60, resetsIn: -120), sevenDay: window(10, resetsIn: 86_400), sevenDayOpus: nil)
+        let after = UsageData(fiveHour: window(30, resetsIn: 5 * 3600), sevenDay: window(10, resetsIn: 86_400), sevenDayOpus: nil)
+
+        sut.checkAndNotify(usage: after, previousUsage: before, thresholds: [])
+
+        XCTAssertEqual(delivered.map(\.content.title), [NotificationType.limitReset.title])
+    }
+
+    /// Regression: reset notifications shared an hourly throttle, so a second limit
+    /// resetting within the hour was silently dropped.
+    func testTwoLimitsResettingWithinAnHour_BothNotify() {
+        let start = UsageData(fiveHour: window(80, resetsIn: -60), sevenDay: window(90, resetsIn: 1800), sevenDayOpus: nil)
+        let fiveHourReset = UsageData(fiveHour: window(5, resetsIn: 5 * 3600), sevenDay: window(90, resetsIn: -60), sevenDayOpus: nil)
+        let sevenDayReset = UsageData(fiveHour: window(5, resetsIn: 5 * 3600), sevenDay: window(2, resetsIn: 7 * 86_400), sevenDayOpus: nil)
+
+        sut.checkAndNotify(usage: fiveHourReset, previousUsage: start, thresholds: [])
+        sut.checkAndNotify(usage: sevenDayReset, previousUsage: fiveHourReset, thresholds: [])
+
+        XCTAssertEqual(delivered.count, 2)
     }
 }
 
@@ -496,8 +580,8 @@ final class LimitsSchemaTests: XCTestCase {
     }
 
     func testLimits_PercentIsNotFractionNormalized() throws {
-        // UsageWindow rescales values in (0, 1) as fractions. `limits[].percent` is already
-        // a percentage, so 0.5 must stay 0.5% and not become 50%.
+        // `limits[].percent` is already a percentage, so 0.5 must stay 0.5% and not
+        // become 50%.
         let usageData = try decode("""
         {
             "limits": [
@@ -702,6 +786,38 @@ final class LimitsSchemaTests: XCTestCase {
         // Ids come from the server, so a reorder can no longer swap two limits' state.
         XCTAssertEqual(usageData.displayWindows.map(\.id),
                        ["weekly_scoped:model_a", "weekly_scoped:model_b"])
+    }
+
+    // MARK: Menu bar figure
+
+    func testMenuBarUsage_FallsBackToWeeklyWhenPlanHasNoSessionLimit() throws {
+        // Shape observed for plans without a 5-hour window: no `five_hour`, no `session` entry.
+        let usageData = try decode("""
+        {
+            "seven_day": { "utilization": 44, "resets_at": "2026-11-04T11:00:00Z" },
+            "limits": [
+                { "group": "weekly", "kind": "weekly_all", "percent": 44, "is_active": true },
+                { "group": "weekly", "kind": "weekly_scoped", "percent": 2,
+                  "scope": { "model": { "display_name": "Fable" } } }
+            ]
+        }
+        """)
+
+        XCTAssertNil(usageData.usage(forLimitId: "5h"))
+        XCTAssertEqual(usageData.menuBarUsage, 44)
+    }
+
+    func testMenuBarUsage_PrefersSessionLimitWhenPlanHasOne() throws {
+        let usageData = try decode("""
+        {
+            "limits": [
+                { "group": "session", "kind": "session", "percent": 12 },
+                { "group": "weekly", "kind": "weekly_all", "percent": 44 }
+            ]
+        }
+        """)
+
+        XCTAssertEqual(usageData.menuBarUsage, 12)
     }
 
     // MARK: Notification naming

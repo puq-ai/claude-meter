@@ -70,14 +70,19 @@ struct SettingsView: View {
 
     // MARK: - Tab Picker View
     private var tabPickerView: some View {
+        // Text-only, small, content-sized segments: on current macOS the regular-size
+        // segmented control with Labels outgrows the 380pt popover and is clipped at both edges.
         Picker("", selection: $selectedTab) {
-            Label("General", systemImage: "gear").tag(0)
-            Label("Appearance", systemImage: "paintpalette").tag(1)
-            Label("Notifications", systemImage: "bell").tag(2)
-            Label("About", systemImage: "info.circle").tag(3)
+            Text("General").tag(0)
+            Text("Appearance").tag(1)
+            Text("Notifications").tag(2)
+            Text("About").tag(3)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .controlSize(.small)
+        .fixedSize()
+        .frame(maxWidth: .infinity)
         .padding(.horizontal)
         .padding(.bottom, 8)
     }

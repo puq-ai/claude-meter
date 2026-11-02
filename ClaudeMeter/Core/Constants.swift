@@ -47,6 +47,13 @@ enum Constants {
         static let maxCooldownDuration: TimeInterval = 600
         static let stalenessThreshold: TimeInterval = 30
         static let manualRefreshDebounce: TimeInterval = 5
+
+        /// Cooldown to honour for a 429. A missing header falls back to the default; a zero or
+        /// negative one is floored at the request spacing, since a 0 s timer spins the run loop.
+        static func cooldown(retryAfter: TimeInterval?) -> TimeInterval {
+            let requested = retryAfter ?? defaultCooldownDuration
+            return min(max(requested, minimumRequestInterval), maxCooldownDuration)
+        }
     }
 
     // MARK: - Retry Configuration
@@ -63,7 +70,10 @@ enum Constants {
         static let defaultInterval: TimeInterval = 30
         static let minInterval: TimeInterval = 30
         static let maxInterval: TimeInterval = 300
-        static let backgroundInterval: TimeInterval = 900  // 15 minutes
+
+        /// Delay after a limit's `resets_at` before refreshing, so the server has rolled the
+        /// window over by the time we ask.
+        static let postResetRefreshDelay: TimeInterval = 5
 
         // Adaptive polling thresholds
         static let highUsageThreshold: Double = 75
@@ -87,17 +97,17 @@ enum Constants {
 
     // MARK: - Notification Configuration
     enum Notification {
-        static let throttleInterval: TimeInterval = 3600  // 1 hour
         static let hysteresisBuffer: Double = 5.0
 
-        // Default thresholds
-        static let defaultThresholds: [Int] = [75, 90, 95]
-
         // UserDefaults keys
-        static let throttleTimesKey = "com.claudemeter.throttleTimes"
         static let notificationStateKey = "com.claudemeter.notificationState"
 
         // Reset detection
+        /// A window that rolls over is only news if a meaningful share of it had been used.
+        static let resetMinimumPriorUsage: Double = 40.0
+        /// `resets_at` carries fractional seconds that shift between polls; a rollover moves it by hours.
+        static let resetRolloverTolerance: TimeInterval = 60
+        /// Fallback for limits without `resets_at`: a large drop to a low value.
         static let resetDropThreshold: Double = 40.0
         static let resetLowThreshold: Double = 20.0
     }
@@ -117,27 +127,13 @@ enum Constants {
         static let webSessionAccount = "claude-ai-session"
     }
 
-    // MARK: - FileWatcher Configuration
-    enum FileWatcher {
-        static let debounceInterval: TimeInterval = 1.0
-        static let fsEventsLatency: CFTimeInterval = 0.5
-
-        static let configPaths: [String] = [
-            "~/.config/claude/",
-            "~/.claude/"
-        ]
-
-        static let relevantExtensions = ["json", ""]
-        static let relevantFiles = ["credentials", "settings", "config"]
-    }
-
     // MARK: - App Settings
     enum Settings {
         static let userDefaultsKey = "com.claudemeter.settings"
 
         // Validation bounds
-        static let minRefreshInterval = 30
-        static let maxRefreshInterval = 600
+        static let minRefreshInterval = Int(Polling.minInterval)
+        static let maxRefreshInterval = Int(Polling.maxInterval)
 
         // Defaults
         static let defaultRefreshInterval = 30
@@ -146,16 +142,16 @@ enum Constants {
 
     // MARK: - Credentials
     enum Credentials {
-        static let expirationWarningThreshold: TimeInterval = 5 * 60  // 5 minutes
         static let defaultSubscriptionType = "pro"
+        /// How long a Keychain read is reused. Short enough that switching accounts in the CLI
+        /// shows up within a few polls; long enough not to spawn `security` on every tick.
+        static let cacheLifetime: TimeInterval = 300
     }
 
     // MARK: - UI Dimensions
     enum UI {
-        static let menuBarIconSize: CGFloat = 18
-        static let menuBarIconLineWidth: CGFloat = 2.5
-        static let settingsMaxWidth: CGFloat = 400
         static let aboutLogoSize: CGFloat = 64
+        static let settingsMaxWidth: CGFloat = 400
     }
 
     // MARK: - Wake Recovery Configuration
@@ -163,14 +159,5 @@ enum Constants {
         static let initialDelay: TimeInterval = 2.0
         static let retryDelays: [TimeInterval] = [5, 15, 30]
         static let significantSleepDuration: TimeInterval = 300  // 5 minutes
-        static let maxRetries = 3
-    }
-
-    // MARK: - Statistics Configuration
-    enum Statistics {
-        static let storageFileName = "usage_statistics.json"
-        static let maxHistoryDays = 365
-        static let refreshInterval: TimeInterval = 300  // 5 minutes
-        static let claudeProjectsPath = "~/.claude/projects"
     }
 }

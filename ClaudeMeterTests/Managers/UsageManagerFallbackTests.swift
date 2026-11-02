@@ -273,6 +273,76 @@ final class UsageManagerFallbackTests: XCTestCase {
         XCTAssertTrue(sut.authState.needsAttention)
     }
 
+    /// Regression: a web-only user whose claude.ai session lapsed kept `.webOnly` (from the
+    /// last successful fetch) and saw stale numbers with no way to reconnect.
+    func testAuthState_ExpiredWebSessionNeedsAttention() async {
+        configureFallback()
+        mockKeychainService.stubbedCredentials = nil
+        await sut.fetchUsage()
+        XCTAssertEqual(sut.authState, .webOnly, "precondition: the fallback was carrying us")
+
+        mockAPIService.stubbedWebError = APIError.unauthorized
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .failed(.webSessionExpired))
+        XCTAssertTrue(sut.authState.needsAttention)
+        XCTAssertEqual(sut.error as? AppError, .webSessionExpired,
+                       "the fix is signing in to claude.ai, not logging in to Claude Code")
+    }
+
+    /// A claude.ai outage or offline Mac is not a lost session: no connect prompt for it.
+    func testAuthState_TransientFallbackFailureStaysWebOnly() async {
+        configureFallback()
+        mockKeychainService.stubbedCredentials = nil
+        mockAPIService.stubbedWebError = APIError.networkError(URLError(.notConnectedToInternet))
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.authState, .webOnly)
+        XCTAssertEqual(sut.error as? AppError, .networkUnavailable)
+    }
+
+    /// A Keychain item that exists but can't be parsed is not "never logged in".
+    func testUnreadableCredentials_AreNotReportedAsMissing() async {
+        mockKeychainService.stubbedCredentialsError = KeychainError.invalidItemFormat
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.error as? AppError, .keychainReadFailed)
+        XCTAssertEqual(sut.authState, .failed(.keychainReadFailed))
+    }
+
+    // MARK: - Credential reuse
+
+    /// The CLI rotates its token behind our back; a cached one must not turn that into an
+    /// auth failure.
+    func testRotatedToken_IsPickedUpOnRejection() async {
+        configurePrimary()
+        await sut.fetchUsage()
+
+        mockAPIService.rejectedTokens = [TestData.makeCredentials().accessToken]
+        mockKeychainService.stubbedCredentials = TestData.makeCredentials(accessToken: "rotated-token")
+        await sut.fetchUsage()
+
+        XCTAssertNil(sut.error)
+        XCTAssertEqual(mockAPIService.lastToken, "rotated-token")
+        XCTAssertEqual(sut.authState, .cliAuthenticated)
+    }
+
+    // MARK: - Network errors
+
+    func testOffline_IsReportedAsNetworkUnavailable() async {
+        mockKeychainService.stubbedCredentials = TestData.makeCredentials()
+        mockAPIService.stubbedError = APIError.maxRetriesExceeded(
+            lastError: APIError.networkError(URLError(.notConnectedToInternet))
+        )
+
+        await sut.fetchUsage()
+
+        XCTAssertEqual(sut.error as? AppError, .networkUnavailable,
+                       "an offline Mac is not an unreachable server")
+    }
+
     // MARK: - Provenance
 
     func testDataSource_ReportsCacheWhenEverythingFails() async {

@@ -93,10 +93,6 @@ struct UsageCardView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-        )
         .shadow(color: isCritical ? progressColor.opacity(0.3) : .clear, radius: isCritical ? 8 : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
@@ -146,10 +142,6 @@ struct CompactUsageCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-        )
     }
 }
 

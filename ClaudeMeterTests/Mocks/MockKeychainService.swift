@@ -23,6 +23,8 @@ class MockKeychainService: KeychainServiceProtocol {
 
     // MARK: - Stubbed Responses
     var stubbedCredentials: ClaudeCredentials?
+    /// Thrown by `getCredentials` in place of returning `stubbedCredentials`.
+    var stubbedCredentialsError: Error?
     var stubbedHasCredentials = false
     var shouldThrowOnSave = false
     var shouldThrowOnRead = false
@@ -65,12 +67,13 @@ class MockKeychainService: KeychainServiceProtocol {
         "\(service)/\(account)"
     }
 
-    func getCredentials() throws -> ClaudeCredentials? {
+    func getCredentials() async throws -> ClaudeCredentials? {
         getCredentialsCallCount += 1
+        if let error = stubbedCredentialsError { throw error }
         return stubbedCredentials
     }
 
-    func hasCredentials() -> Bool {
+    func hasCredentials() async -> Bool {
         hasCredentialsCallCount += 1
         return stubbedHasCredentials
     }
@@ -85,6 +88,7 @@ class MockKeychainService: KeychainServiceProtocol {
         getCredentialsCallCount = 0
         hasCredentialsCallCount = 0
         stubbedCredentials = nil
+        stubbedCredentialsError = nil
         stubbedHasCredentials = false
         shouldThrowOnSave = false
         shouldThrowOnRead = false

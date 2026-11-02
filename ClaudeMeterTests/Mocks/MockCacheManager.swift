@@ -18,7 +18,6 @@ class MockCacheManager: CacheManagerProtocol {
     // MARK: - Call Tracking
     var cacheUsageDataCallCount = 0
     var getCachedUsageDataCallCount = 0
-    var clearCacheCallCount = 0
 
     // MARK: - CacheManagerProtocol
 
@@ -44,23 +43,6 @@ class MockCacheManager: CacheManagerProtocol {
         return data
     }
 
-    func clearCache() {
-        clearCacheCallCount += 1
-        cachedData = nil
-        cacheTimestamp = nil
-    }
-
-    var hasCachedData: Bool {
-        return cachedData != nil
-    }
-
-    var cacheAge: TimeInterval? {
-        guard let timestamp = cacheTimestamp else {
-            return nil
-        }
-        return Date().timeIntervalSince(timestamp)
-    }
-
     // MARK: - Test Helpers
 
     func setCachedData(_ data: UsageData, timestamp: Date = Date()) {
@@ -75,6 +57,5 @@ class MockCacheManager: CacheManagerProtocol {
         cacheTimestamp = nil
         cacheUsageDataCallCount = 0
         getCachedUsageDataCallCount = 0
-        clearCacheCallCount = 0
     }
 }

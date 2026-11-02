@@ -19,7 +19,8 @@ struct ConnectView: View {
     @State private var didCopyCommand = false
     @State private var pollTask: Task<Void, Never>?
 
-    private static let loginCommand = "claude login"
+    /// `claude login` is not a subcommand: the CLI treats it as a prompt and starts a chat.
+    private static let loginCommand = "claude auth login"
 
     var body: some View {
         VStack(spacing: 14) {
@@ -106,16 +107,16 @@ struct ConnectView: View {
         }
     }
 
-    /// The CLI writes its credentials to the Keychain, which the file watcher (it watches
-    /// `~/.claude`) cannot see. Poll while this screen is up so signing in elsewhere is
-    /// noticed without the user having to come back and press refresh.
+    /// The CLI writes its credentials to the Keychain, which nothing can observe for changes.
+    /// Poll while this screen is up so signing in elsewhere is noticed without the user
+    /// having to come back and press refresh.
     private func startWatchingForCredentials() {
         pollTask?.cancel()
         pollTask = Task {
             for _ in 0..<150 {   // ~5 minutes at 2s
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 guard !Task.isCancelled else { return }
-                if appState.hasCLICredentials {
+                if await appState.hasCLICredentials() {
                     await appState.refresh(reason: "credentials_detected")
                     return
                 }

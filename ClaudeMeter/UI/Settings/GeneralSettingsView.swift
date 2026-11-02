@@ -63,7 +63,6 @@ struct GeneralSettingsView: View {
                     .accessibilityLabel("Refresh Interval")
                     .accessibilityHint("Choose how often to update usage data")
                 }
-                .background(ScrollBarHider())
 
                 Section(header: Text("claude.ai Fallback")) {
                     HStack {
@@ -137,7 +136,7 @@ struct GeneralSettingsView: View {
                 }
             }
             .formStyle(.grouped)
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.never)
 
         }
     }

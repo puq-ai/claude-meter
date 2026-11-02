@@ -49,7 +49,9 @@ struct PopoverView: View {
                         showingSettings = false
                     }
                 })
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                // Slide only: fading AppKit-backed controls (segmented picker, toggles) over the
+                // material renders them washed-out white until the animation settles.
+                .transition(.move(edge: .trailing))
             }
         }
         .frame(width: popoverWidth, height: popoverHeight)
@@ -199,9 +201,8 @@ struct PopoverView: View {
             }
             .padding(.horizontal, contentPadding)
             .padding(.vertical, 8)
-            .background(ScrollBarHider())
         }
-        .scrollIndicators(.hidden)
+        .scrollIndicators(.never)
     }
 
     // MARK: - Error View
@@ -369,10 +370,6 @@ struct PopoverView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-        )
     }
 
     // MARK: - Extra Usage Card
@@ -431,10 +428,6 @@ struct PopoverView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-        )
         .shadow(color: isCritical ? progressColor.opacity(0.3) : .clear, radius: isCritical ? 8 : 0)
     }
 
@@ -482,29 +475,6 @@ struct PopoverView: View {
         }
         .buttonStyle(.plain)
         .help("Visit puq.ai")
-    }
-}
-
-// MARK: - ScrollBar Hider
-
-struct ScrollBarHider: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            Self.hideScrollBars(for: view)
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        Self.hideScrollBars(for: nsView)
-    }
-
-    private static func hideScrollBars(for view: NSView) {
-        guard let scrollView = view.enclosingScrollView else { return }
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.scrollerStyle = .overlay
     }
 }
 

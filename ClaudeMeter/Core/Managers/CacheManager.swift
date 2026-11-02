@@ -47,7 +47,8 @@ class CacheManager: CacheManagerProtocol {
             let jsonData = try encoder.encode(cacheEntry)
 
             let fileURL = cacheDirectory.appendingPathComponent(usageDataFile)
-            try jsonData.write(to: fileURL)
+            // Atomic: a crash mid-write must not leave a truncated file that fails to decode.
+            try jsonData.write(to: fileURL, options: .atomic)
         } catch {
             print("CacheManager: Failed to cache usage data - \(error)")
         }
@@ -83,65 +84,6 @@ class CacheManager: CacheManagerProtocol {
             return nil
         }
     }
-
-    /// Check if cache exists and is valid
-    var hasCachedData: Bool {
-        return getCachedUsageData() != nil
-    }
-
-    /// Get the age of the cached data (uses embedded timestamp, not file date)
-    var cacheAge: TimeInterval? {
-        let fileURL = cacheDirectory.appendingPathComponent(usageDataFile)
-
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            return nil
-        }
-
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let cacheEntry = try decoder.decode(CacheEntry<UsageData>.self, from: data)
-            return Date().timeIntervalSince(cacheEntry.timestamp)
-        } catch {
-            return nil
-        }
-    }
-
-    // MARK: - Cache Management
-
-    /// Clear all cached data
-    func clearCache() {
-        try? fileManager.removeItem(at: cacheDirectory)
-        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-    }
-
-    /// Get total cache size in bytes
-    var cacheSize: Int64 {
-        guard let enumerator = fileManager.enumerator(
-            at: cacheDirectory,
-            includingPropertiesForKeys: [.fileSizeKey]
-        ) else {
-            return 0
-        }
-
-        var totalSize: Int64 = 0
-        for case let fileURL as URL in enumerator {
-            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
-                  let fileSize = resourceValues.fileSize else {
-                continue
-            }
-            totalSize += Int64(fileSize)
-        }
-        return totalSize
-    }
-
-    /// Format cache size for display
-    var formattedCacheSize: String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: cacheSize)
-    }
 }
 
 // MARK: - Cache Entry
@@ -157,7 +99,3 @@ private struct CacheEntry<T: Codable>: Codable {
         self.version = version
     }
 }
-
-// MARK: - Cache Key Protocol
-
-protocol CacheKey: RawRepresentable where RawValue == String {}

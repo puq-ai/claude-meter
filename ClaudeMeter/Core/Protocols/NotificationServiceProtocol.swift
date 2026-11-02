@@ -32,7 +32,4 @@ protocol NotificationServiceProtocol {
     ///   - previousUsage: Previous usage data for comparison
     ///   - thresholds: Enabled threshold values
     func checkAndNotify(usage: UsageData, previousUsage: UsageData?, thresholds: [Int])
-
-    /// Reset all notification state
-    func resetNotificationState()
 }

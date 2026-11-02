@@ -19,13 +19,14 @@ protocol KeychainServiceProtocol {
     /// Delete data from keychain under an explicit service
     func delete(account: String, service: String) throws
 
-    /// Get Claude Code's credentials from the keychain
+    /// Get Claude Code's credentials from the keychain. Async because it runs a subprocess,
+    /// which must never block the main thread.
     /// - Returns: ClaudeCredentials if found
-    func getCredentials() throws -> ClaudeCredentials?
+    func getCredentials() async throws -> ClaudeCredentials?
 
     /// Check if Claude Code credentials exist in Keychain
     /// - Returns: True if credentials exist
-    func hasCredentials() -> Bool
+    func hasCredentials() async -> Bool
 }
 
 // Swift protocol requirements cannot carry default arguments, so the convenience overloads

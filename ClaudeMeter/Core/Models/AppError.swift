@@ -15,6 +15,8 @@ enum AppError: Error, LocalizedError, Equatable {
     case invalidCredentials
     case credentialsExpired
     case authenticationFailed(String)
+    /// The claude.ai session cookie was rejected; only signing in again brings it back.
+    case webSessionExpired
 
     // MARK: - Network Errors
     case networkUnavailable
@@ -49,6 +51,8 @@ enum AppError: Error, LocalizedError, Equatable {
             return "Your credentials have expired. Please re-authenticate."
         case .authenticationFailed(let message):
             return "Authentication failed: \(message)"
+        case .webSessionExpired:
+            return "Your claude.ai session has expired. Reconnect to keep usage updating."
 
         case .networkUnavailable:
             return "Network is unavailable. Please check your connection."
@@ -75,7 +79,7 @@ enum AppError: Error, LocalizedError, Equatable {
             return "No data received from the server."
 
         case .keychainReadFailed:
-            return "Failed to read from Keychain."
+            return "Couldn't read Claude Code's credentials from the Keychain."
         case .keychainWriteFailed:
             return "Failed to write to Keychain."
         case .keychainItemNotFound:
@@ -91,7 +95,9 @@ enum AppError: Error, LocalizedError, Equatable {
     var recoverySuggestion: String? {
         switch self {
         case .noCredentials, .invalidCredentials, .credentialsExpired:
-            return "Run 'claude login' in Terminal to authenticate."
+            return "Run 'claude auth login' in Terminal to authenticate."
+        case .webSessionExpired:
+            return "Sign in to claude.ai again from the popover or Settings."
         case .networkUnavailable:
             return "Check your internet connection and try again."
         case .rateLimited:
@@ -110,6 +116,7 @@ enum AppError: Error, LocalizedError, Equatable {
         case (.noCredentials, .noCredentials),
              (.invalidCredentials, .invalidCredentials),
              (.credentialsExpired, .credentialsExpired),
+             (.webSessionExpired, .webSessionExpired),
              (.networkUnavailable, .networkUnavailable),
              (.connectionTimeout, .connectionTimeout),
              (.serverUnreachable, .serverUnreachable),
@@ -155,11 +162,35 @@ extension AppError {
         case .rateLimited(let retryAfter):
             return .rateLimited(retryAfter: retryAfter)
         case .networkError(let error):
-            return .unknown(error.localizedDescription)
-        case .maxRetriesExceeded:
+            return .from(transportError: error)
+        case .maxRetriesExceeded(let lastError):
+            // Report what actually kept failing: an offline Mac is not an unreachable server.
+            if let lastAPIError = lastError as? APIError {
+                return .from(lastAPIError)
+            }
             return .serverUnreachable
         case .unknown(let error):
             return .unknown(error.localizedDescription)
+        }
+    }
+
+    /// Convert a URLSession transport failure, keeping the distinctions the UI can act on.
+    static func from(transportError error: Error) -> AppError {
+        if error is CancellationError { return .cancelled }
+        guard let urlError = error as? URLError else {
+            return .unknown(error.localizedDescription)
+        }
+        switch urlError.code {
+        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff:
+            return .networkUnavailable
+        case .timedOut:
+            return .connectionTimeout
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return .serverUnreachable
+        case .cancelled:
+            return .cancelled
+        default:
+            return .unknown(urlError.localizedDescription)
         }
     }
 
@@ -170,43 +201,6 @@ extension AppError {
             return .keychainItemNotFound
         case .duplicateItem, .invalidItemFormat, .unexpectedStatus:
             return .keychainReadFailed
-        }
-    }
-}
-
-// MARK: - Error Severity
-
-extension AppError {
-    enum Severity {
-        case info
-        case warning
-        case error
-        case critical
-    }
-
-    var severity: Severity {
-        switch self {
-        case .cancelled:
-            return .info
-        case .rateLimited, .connectionTimeout:
-            return .warning
-        case .noCredentials, .networkUnavailable, .noData:
-            return .error
-        case .invalidCredentials, .credentialsExpired, .serverError, .serverUnreachable:
-            return .critical
-        default:
-            return .error
-        }
-    }
-
-    var shouldRetry: Bool {
-        switch self {
-        case .rateLimited, .connectionTimeout, .serverUnreachable, .networkUnavailable:
-            return true
-        case .serverError(let code, _):
-            return code >= 500
-        default:
-            return false
         }
     }
 }

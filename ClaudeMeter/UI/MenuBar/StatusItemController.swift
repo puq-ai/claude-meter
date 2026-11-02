@@ -47,6 +47,7 @@ class StatusItemController: NSObject {
         let pop = NSPopover()
         pop.contentSize = NSSize(width: 380, height: 420)
         pop.behavior = .transient
+        pop.delegate = self
 
         let popoverView = PopoverView(appState: appState)
         pop.contentViewController = NSHostingController(rootView: popoverView)
@@ -75,16 +76,19 @@ class StatusItemController: NSObject {
             return
         }
 
-        // Use 5-hour usage for menu bar display. Read through displayWindows so the menu
-        // bar keeps working off the `limits` array once the server stops sending the
-        // top-level `five_hour` key, the way it already did for the per-model windows.
-        let fiveHourUsage = data?.usage(forLimitId: "5h") ?? 0
+        button.toolTip = nil
+
+        // Ring shows the 5-hour session limit, or the 7-day limit on plans that no longer
+        // have one (see `UsageData.menuBarUsage`). Read through displayWindows so it works
+        // off the `limits` array. nil (no data yet, or data invalidated after sleep) renders
+        // as "--": a green 0% there claims a fresh window the user may well not have.
+        let ringUsage = data?.menuBarUsage
 
         switch mode {
         case .iconOnly:
-            updateIconOnlyMode(button: button, usage: fiveHourUsage)
+            updateIconOnlyMode(button: button, usage: ringUsage)
         case .compact:
-            updateCompactMode(button: button, usage: fiveHourUsage)
+            updateCompactMode(button: button, usage: ringUsage)
         case .detailed:
             updateDetailedMode(button: button, data: data)
         }
@@ -105,16 +109,24 @@ class StatusItemController: NSObject {
     }
 
     // MARK: - Icon Only Mode
-    private func updateIconOnlyMode(button: NSStatusBarButton, usage: Double) {
+    private func updateIconOnlyMode(button: NSStatusBarButton, usage: Double?) {
         button.title = ""
-        button.image = createProgressIcon(progress: usage / 100.0, color: colorForUsage(usage))
+        button.image = progressIcon(for: usage)
     }
 
     // MARK: - Compact Mode (Icon + Percentage)
-    private func updateCompactMode(button: NSStatusBarButton, usage: Double) {
-        button.image = createProgressIcon(progress: usage / 100.0, color: colorForUsage(usage))
-        button.title = String(format: " %.0f%%", usage)
+    private func updateCompactMode(button: NSStatusBarButton, usage: Double?) {
+        button.image = progressIcon(for: usage)
+        button.title = usage.map { String(format: " %.0f%%", $0) } ?? " --"
         button.imagePosition = .imageLeading
+    }
+
+    /// Progress ring for a usage percentage; an empty ring when usage is unknown.
+    private func progressIcon(for usage: Double?) -> NSImage {
+        guard let usage = usage else {
+            return createProgressIcon(progress: 0, color: .gray)
+        }
+        return createProgressIcon(progress: usage / 100.0, color: colorForUsage(usage))
     }
 
     // MARK: - Detailed Mode (5h: XX% | 7d: YY%)
@@ -128,12 +140,14 @@ class StatusItemController: NSObject {
 
         var parts: [String] = []
 
+        // Rounded like the compact title and the popover, so one value never reads 99% in
+        // one place and 100% in another.
         if let fiveHour = data.usage(forLimitId: "5h") {
-            parts.append("5h: \(Int(fiveHour))%")
+            parts.append(String(format: "5h: %.0f%%", fiveHour))
         }
 
         if let sevenDay = data.usage(forLimitId: "7d") {
-            parts.append("7d: \(Int(sevenDay))%")
+            parts.append(String(format: "7d: %.0f%%", sevenDay))
         }
 
         let title = parts.isEmpty ? "No data" : parts.joined(separator: " | ")
@@ -229,14 +243,14 @@ class StatusItemController: NSObject {
 
         if popover.isShown {
             popover.performClose(sender)
-            removeEventMonitor()
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
-            setupEventMonitor()
 
-            // Only refresh if data is stale
-            if appState.pollingManager.isDataStale(lastUpdateTime: appState.lastUpdateTime) {
+            // Only refresh if data is stale, and not on top of a fetch already running:
+            // an explicit refresh would queue a second one behind it.
+            if !appState.pollingManager.isFetching,
+               appState.pollingManager.isDataStale(lastUpdateTime: appState.lastUpdateTime) {
                 Task {
                     await appState.refresh(reason: "popover_open")
                 }
@@ -259,18 +273,18 @@ class StatusItemController: NSObject {
     func hidePopover() {
         guard let popover = popover, popover.isShown else { return }
         popover.performClose(nil)
-        removeEventMonitor()
     }
 
     // MARK: - Event Monitor
 
+    /// Closes the popover on clicks in other apps, which `.transient` alone misses while
+    /// this app is not active. Installed and removed from the popover delegate so every
+    /// close path - outside click, Esc, `.transient`, `performClose` - removes it; tying it
+    /// to the toggle leaked one global monitor per close that didn't go through the toggle.
     private func setupEventMonitor() {
+        removeEventMonitor()
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            guard let self = self,
-                  let popover = self.popover,
-                  popover.isShown else { return }
-
-            self.hidePopover()
+            self?.hidePopover()
         }
     }
 
@@ -285,5 +299,17 @@ class StatusItemController: NSObject {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
         }
+    }
+}
+
+// MARK: - NSPopoverDelegate
+
+extension StatusItemController: NSPopoverDelegate {
+    func popoverDidShow(_ notification: Notification) {
+        setupEventMonitor()
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        removeEventMonitor()
     }
 }
